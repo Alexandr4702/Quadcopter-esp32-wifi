@@ -30,6 +30,7 @@ IN THE SOFTWARE.
 #define SPIBUS_READ     (0x80)  /*!< addr | SPIBUS_READ  */
 #define SPIBUS_WRITE    (0x7F)  /*!< addr & SPIBUS_WRITE */
 
+//#define CONFIG_SPIBUS_LOG_READWRITES
 // Forward declaration
 class SPI;
 

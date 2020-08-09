@@ -18,7 +18,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
  ========================================================================= */
 
- #include "SPIbus.hpp"
+ #include "SPIbus.h"
  #include <stdio.h>
  #include <stdint.h>
  #include "driver/spi_common.h"
