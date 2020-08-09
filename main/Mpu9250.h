@@ -9,6 +9,9 @@
 #define MAIN_MPU9250_H_
 
 #include "stdint.h"
+#include "driver/spi_master.h"
+#include "soc/gpio_struct.h"
+#include "driver/gpio.h"
 
 class Mpu9250 {
 public:

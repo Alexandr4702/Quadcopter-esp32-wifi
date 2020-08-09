@@ -25,6 +25,7 @@ const int IPV6_GOTIP_BIT = BIT1;
 
 
 #include "Mpu9250.h"
+#include "SPIbus.h"
 typedef struct
 {
 	float gyro3;
@@ -240,9 +241,87 @@ static void tcp_server_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+void print_bytes(void *ptr,uint16_t cnt_bytes)
+{
+	uint8_t* buff =reinterpret_cast<uint8_t*>(ptr);
+	for(uint16_t i=0;i<cnt_bytes;i++)
+	{
+		printf("%02hx ",buff[i]);
+	}
+	printf("\r\n");
+}
+
 static void Gy91_thread(void *pvParameters)
 {
+    spi_device_handle_t spi;
+    esp_err_t ret;
 
+    spi_bus_config_t buscfg=
+    {
+		mosi_io_num:23,
+        miso_io_num:19,
+        sclk_io_num:18,
+        quadwp_io_num:-1,
+        quadhd_io_num:-1,
+        max_transfer_sz:SPI_MAX_DMA_LEN,
+		flags:0,
+		intr_flags:0
+    };
+    spi_device_interface_config_t devcfg=
+    {
+    		command_bits:0,
+			address_bits:0,
+			dummy_bits:0,
+			mode:0,
+			duty_cycle_pos:128,
+			cs_ena_pretrans:0,
+			cs_ena_posttrans:0,
+			clock_speed_hz:SPI_MASTER_FREQ_8M/8,
+			input_delay_ns:5,
+			spics_io_num:5,
+			flags:0,
+			queue_size:1,
+			pre_cb:NULL,
+			post_cb:NULL
+    };
+
+
+    //Initialize the SPI bus
+    ret=spi_bus_initialize(HSPI_HOST, &buscfg, 0);
+    ESP_ERROR_CHECK(ret);
+    //Attach the LCD to the SPI bus
+    ret=spi_bus_add_device(HSPI_HOST, &devcfg, &spi);
+    ESP_ERROR_CHECK(ret);
+    //Initialize the LCD
+
+
+    uint8_t data=0x00|0x75;
+    uint8_t len=1;
+    spi_transaction_t t;
+    memset(&t, 0, sizeof(t));       //Zero out the transaction
+    t.length=len*8;                 //Len is in bytes, transaction length is in bits.
+    t.tx_buffer=&data;               //Data
+//    t.user=(void*)1;                //D/C needs to be set to 1
+    ret=spi_device_transmit(spi, &t);  //Transmit!
+    assert(ret==ESP_OK);            //Should have had no issues.
+
+    len=2;
+    memset(&t, 0, sizeof(t));
+    t.length=8*len;
+    t.rxlength=t.length;
+//    t.flags = SPI_TRANS_USE_RXDATA;
+//    t.user = (void*)1;
+
+    ret = spi_device_transmit(spi, &t);
+    assert( ret == ESP_OK );
+    print_bytes(t.rx_data,4);
+
+
+    while(true){
+//        vTaskDelay(100 / portTICK_RATE_MS);
+        vTaskDelay(portMAX_DELAY);
+
+    }
 }
 
 extern "C"
@@ -250,13 +329,13 @@ extern "C"
 
 void app_main(void)
 {
-    ESP_ERROR_CHECK( nvs_flash_init() );
-    initialise_wifi();
-    wait_for_ip();
+//    ESP_ERROR_CHECK( nvs_flash_init() );
+//    initialise_wifi();
+//    wait_for_ip();
 
 
 
-    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
+//    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
 
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
 
