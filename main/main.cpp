@@ -333,10 +333,14 @@ static void Gy91_thread(void *pvParameters)
     printf("%02hx \r\n",am);
 
     uint8_t buffer[6];
+    int16_t raw_accel[3];
     while (1) {
         ESP_ERROR_CHECK(mySPI.readBytes(device, 0x3B, 6, buffer));
-        print_bytes(buffer,6);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        raw_accel[0]=(buffer[1])|buffer[0]<<8;
+        raw_accel[1]=(buffer[3])|buffer[2]<<8;
+        raw_accel[2]=(buffer[5])|buffer[4]<<8;
+        printf("%f %f %f \r\n",raw_accel[0]*2000.0f/32768.0f,raw_accel[1]*2000.0f/32768.0f,raw_accel[2]*2000.0f/32768.0f);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
