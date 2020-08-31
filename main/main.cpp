@@ -14,8 +14,9 @@
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
-
 #include "vector"
+
+#include "MadgwickAHRS.h"
 
 static const char *TAG = "example";
 static EventGroupHandle_t wifi_event_group;
@@ -253,93 +254,20 @@ void print_bytes(void *ptr,uint16_t cnt_bytes)
 
 static void Gy91_thread(void *pvParameters)
 {
-//    spi_device_handle_t spi;
-//    esp_err_t ret;
-//
-//    spi_bus_config_t buscfg=
-//    {
-//		mosi_io_num:23,
-//        miso_io_num:19,
-//        sclk_io_num:18,
-//        quadwp_io_num:-1,
-//        quadhd_io_num:-1,
-//        max_transfer_sz:SPI_MAX_DMA_LEN,
-//		flags:0,
-//		intr_flags:0
-//    };
-//    spi_device_interface_config_t devcfg=
-//    {
-//    		command_bits:0,
-//			address_bits:0,
-//			dummy_bits:0,
-//			mode:0,
-//			duty_cycle_pos:128,
-//			cs_ena_pretrans:0,
-//			cs_ena_posttrans:0,
-//			clock_speed_hz:SPI_MASTER_FREQ_8M/8,
-//			input_delay_ns:5,
-//			spics_io_num:5,
-//			flags:0,
-//			queue_size:1,
-//			pre_cb:NULL,
-//			post_cb:NULL
-//    };
-//
-//
-//    //Initialize the SPI bus
-//    ret=spi_bus_initialize(HSPI_HOST, &buscfg, 0);
-//    ESP_ERROR_CHECK(ret);
-//    //Attach the LCD to the SPI bus
-//    ret=spi_bus_add_device(HSPI_HOST, &devcfg, &spi);
-//    ESP_ERROR_CHECK(ret);
-//    //Initialize the LCD
-//
-//
-//    uint8_t data=0x00|0x75;
-//    uint8_t len=1;
-//    spi_transaction_t t;
-//    memset(&t, 0, sizeof(t));       //Zero out the transaction
-//    t.length=len*8;                 //Len is in bytes, transaction length is in bits.
-//    t.tx_buffer=&data;               //Data
-////    t.user=(void*)1;                //D/C needs to be set to 1
-//    ret=spi_device_transmit(spi, &t);  //Transmit!
-//    assert(ret==ESP_OK);            //Should have had no issues.
-//
-//    len=2;
-//    memset(&t, 0, sizeof(t));
-//    t.length=8*len;
-//    t.rxlength=t.length;
-////    t.flags = SPI_TRANS_USE_RXDATA;
-////    t.user = (void*)1;
-//
-//    ret = spi_device_transmit(spi, &t);
-//    assert( ret == ESP_OK );
-//    print_bytes(t.rx_data,4);
-
-
-//    while(true){
-////        vTaskDelay(100 / portTICK_RATE_MS);
-//        vTaskDelay(portMAX_DELAY);
-//
-//    }
-
-    SPI_t &mySPI = vspi;  // vspi and hspi are the default objects
-
-    spi_device_handle_t device;
-    ESP_ERROR_CHECK( mySPI.begin(23, 19, 18));
-    ESP_ERROR_CHECK( mySPI.addDevice(0, 1000000, 5, &device));
-    uint8_t am;
-    mySPI.readBytes(device,0x75,1,&am);
-    printf("%02hx \r\n",am);
-
-    uint8_t buffer[6];
-    int16_t raw_accel[3];
+	Mpu9250 avs;
+	avs.init();
     while (1) {
-        ESP_ERROR_CHECK(mySPI.readBytes(device, 0x3B, 6, buffer));
-        raw_accel[0]=(buffer[1])|buffer[0]<<8;
-        raw_accel[1]=(buffer[3])|buffer[2]<<8;
-        raw_accel[2]=(buffer[5])|buffer[4]<<8;
-        printf("%f %f %f \r\n",raw_accel[0]*2000.0f/32768.0f,raw_accel[1]*2000.0f/32768.0f,raw_accel[2]*2000.0f/32768.0f);
+    	avs.read_data();
+    	vec3f accel = avs.getAccel();
+    	vec3f gyro = avs.getAnguarVelo();
+    	vec3f mag = avs.getMag();
+    	printf("%f %f %f "
+    			"%f %f %f \r\n",
+				accel.x, accel.y, accel.z,
+				gyro.x, gyro.y ,gyro.z
+				);
+
+
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }

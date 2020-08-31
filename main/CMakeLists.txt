@@ -6,6 +6,7 @@ set(COMPONENT_SRCS
 "main.cpp"
 "Mpu9250.cpp"
 "SPIbus.cpp"
+"MadgwickAHRS.c"
 )
 set(COMPONENT_ADD_INCLUDEDIRS "")
 
