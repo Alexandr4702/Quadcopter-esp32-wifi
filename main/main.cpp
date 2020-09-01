@@ -24,13 +24,12 @@ const int IPV4_GOTIP_BIT = BIT0;
 const int IPV6_GOTIP_BIT = BIT1;
 #define PORT 3232
 
-
 #include "Mpu9250.h"
 #include "SPIbus.h"
 typedef struct
 {
-	float gyro3;
-	float accel3;
+	Eigen::Vector3f gyro3;
+	Eigen::Vector3f accel3;
 }imu_data __attribute__ ((packed));
 xQueueHandle imu_queu;
 Mpu9250 sensor;
@@ -261,11 +260,17 @@ static void Gy91_thread(void *pvParameters)
     	Eigen::Vector3f accel = avs.getAccel();
     	Eigen::Vector3f gyro = avs.getAnguarVelo();
 //    	vec3f mag = avs.getMag();
-    	printf("%f %f %f "
-    			"%f %f %f \r\n",
+    	MadgwickAHRSupdate(
+    			gyro.x(), gyro.y(), gyro.z(),
 				accel.x(), accel.y(), accel.z(),
-				gyro.x(), gyro.y(), gyro.z()
-				);
+				0, 0, 0);
+    	printf(
+    			"%10.5f %10.5f %10.5f "
+    			"%10.5f %10.5f %10.5f"
+    			"%10.5f %10.5f %10.5f %10.5f \r\n",
+				accel.x(), accel.y(), accel.z(),
+				gyro.x(), gyro.y(), gyro.z(),
+				q0, q1, q2, q3);
 
 //        vTaskDelay(100 / portTICK_PERIOD_MS);
     }

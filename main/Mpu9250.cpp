@@ -19,13 +19,40 @@ Mpu9250::~Mpu9250() {
 void Mpu9250::init() {
 
 	init_spi();
-    uint8_t am;
-    mySPI.readBytes(device_accel_gyro,WHO_AM_I,1,&am);
+    uint8_t am = read_reg(WHO_AM_I);
     printf("%02hx \r\n",am);
 
-    mySPI.writeByte(device_accel_gyro, SMPLRT_DIV, 200);
+    SMPLRT_DIV_value = 19;
+    write_reg(SMPLRT_DIV, SMPLRT_DIV_value);
 
-    lsb_to_mg_accel = 2000.0f / 32768.0f;
+    uint8_t DLPF_CFG = 3;
+    CONFIG_value = DLPF_CFG;
+    write_reg(CONFIG, CONFIG_value);
+
+    uint8_t Fchoice_b = 3;
+    uint8_t GYRO_FS_SEL = 0x0;
+    GYRO_CONFIG_value = Fchoice_b | GYRO_FS_SEL << 3;
+    write_reg(GYRO_CONFIG, GYRO_CONFIG_value);
+
+    uint8_t ACCEL_FS_SEL = 1;
+    ACCEL_CONFIG_value = 0 | ACCEL_FS_SEL << 3;
+    write_reg(ACCEL_CONFIG, ACCEL_CONFIG_value);
+
+    uint8_t accel_fchoice_b = 1;
+    uint8_t A_DLPFCFG = 3;
+    ACCEL_CONFIG_2_value = A_DLPFCFG | accel_fchoice_b << 3;
+    write_reg(ACCEL_CONFIG_2, ACCEL_CONFIG_2_value);
+
+    PWR_MGMT_1_value = 0;
+    write_reg(PWR_MGMT_1, PWR_MGMT_1_value);
+
+    PWR_MGMT_2_value = 0;
+    write_reg(PWR_MGMT_2, PWR_MGMT_2_value);
+
+
+    lsb_to_mg_accel = 4000.0f / 32768.0f;
+    lsb_to_dps_gyro = 250.0f / 32768.0f;
+
 }
 
 void Mpu9250::write_reg(uint8_t reg, uint8_t data) {
@@ -39,19 +66,7 @@ uint8_t Mpu9250::read_reg(uint8_t reg) {
 }
 
 void Mpu9250::read_raw_data() {
-    ESP_ERROR_CHECK(mySPI.readBytes(device_accel_gyro, ACCEL_XOUT_H, 14, const_cast<uint8_t *> (rx_buffer)));
-
-//    spi_transaction_t transaction;
-//    transaction.flags = 0;
-//    transaction.cmd = 0;
-//    transaction.addr = 0x3B | SPIBUS_READ;
-//    transaction.length = 14 * 8;
-//    transaction.rxlength = 14 * 8;
-//    transaction.user = NULL;
-//    transaction.tx_buffer = NULL;
-//    transaction.rx_buffer = rx_buffer;
-//    ESP_ERROR_CHECK( spi_device_transmit(device, &transaction));
-
+	read_regs(rx_buffer, 14);
     raw_data_accel[0] = (rx_buffer[1]) | rx_buffer[0] << 8;
     raw_data_accel[1] = (rx_buffer[3]) | rx_buffer[2] << 8;
     raw_data_accel[2] = (rx_buffer[5]) | rx_buffer[4] << 8;
@@ -96,6 +111,19 @@ void Mpu9250::init_spi() {
 
 void Mpu9250::delay(uint32_t delay_) {
     vTaskDelay(delay_ / portTICK_PERIOD_MS);
+}
+
+void Mpu9250::read_regs(uint8_t *data, uint16_t size) {
+	spi_transaction_t transaction;
+	transaction.flags = 0;
+	transaction.cmd = 0;
+	transaction.addr = 0x3B | SPIBUS_READ;
+	transaction.length = size * 8;
+	transaction.rxlength = size * 8;
+	transaction.user = NULL;
+	transaction.tx_buffer = NULL;
+	transaction.rx_buffer = data;
+	ESP_ERROR_CHECK( spi_device_transmit(device_accel_gyro, &transaction));
 }
 
 void Mpu9250::read_data() {
