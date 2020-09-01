@@ -258,17 +258,16 @@ static void Gy91_thread(void *pvParameters)
 	avs.init();
     while (1) {
     	avs.read_data();
-    	vec3f accel = avs.getAccel();
-    	vec3f gyro = avs.getAnguarVelo();
-    	vec3f mag = avs.getMag();
+    	Eigen::Vector3f accel = avs.getAccel();
+    	Eigen::Vector3f gyro = avs.getAnguarVelo();
+//    	vec3f mag = avs.getMag();
     	printf("%f %f %f "
     			"%f %f %f \r\n",
-				accel.x, accel.y, accel.z,
-				gyro.x, gyro.y ,gyro.z
+				accel.x(), accel.y(), accel.z(),
+				gyro.x(), gyro.y(), gyro.z()
 				);
 
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+//        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 

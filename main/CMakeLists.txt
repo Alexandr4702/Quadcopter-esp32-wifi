@@ -8,6 +8,6 @@ set(COMPONENT_SRCS
 "SPIbus.cpp"
 "MadgwickAHRS.c"
 )
-set(COMPONENT_ADD_INCLUDEDIRS "")
+set(COMPONENT_ADD_INCLUDEDIRS "" "/usr/include/eigen3")
 
 register_component()

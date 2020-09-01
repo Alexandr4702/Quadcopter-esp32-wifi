@@ -45,9 +45,10 @@ extern SPI vspi;
 typedef
 class SPI {
  private:
-    spi_host_device_t host;     /*!< HSPI_HOST or VSPI_HOST */
 
  public:
+    spi_host_device_t host;     /*!< HSPI_HOST or VSPI_HOST */
+
     explicit SPI(spi_host_device_t host);
     ~SPI();
 

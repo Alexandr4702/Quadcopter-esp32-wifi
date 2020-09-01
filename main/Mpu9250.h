@@ -13,56 +13,9 @@
 #include "soc/gpio_struct.h"
 #include "driver/gpio.h"
 #include "SPIbus.h"
+#include <Eigen/Dense>
 
-
-class vec3f
-{
-public:
-	float x;
-	float y;
-	float z;
-	vec3f():x(0),y(0),z(0)
-	{
-
-	}
-	vec3f(vec3f& other):x(other.x),y(other.y),z(other.z)
-	{
-
-	}
-	vec3f(vec3f&& other):x(other.x),y(other.y),z(other.z)
-	{
-
-	}
-	vec3f(float x_, float y_, float z_):x(x_), y(y_), z(z_)
-	{
-
-	}
-	friend vec3f operator + (const vec3f& other1,const vec3f& other2)
-	{
-		return vec3f(other1.x + other2.x,other1.y + other2.y,other1.z + other2.z);
-	}
-	friend vec3f operator * (const vec3f& other1,const vec3f& other2)
-	{
-		return vec3f(other1.x * other2.x, other1.y * other2.y, other1.z * other2.z);
-	}
-	friend vec3f operator * (const vec3f& other1,float consT)
-	{
-		return vec3f(other1.x * consT, other1.y * consT, other1.z * consT);
-	}
-	vec3f operator = (const vec3f& other1)
-	{
-		return vec3f(other1.x,other1.y,other1.z);
-	}
-	vec3f operator = (const int16_t* data)
-	{
-		return vec3f(static_cast <float> (data[0]), static_cast <float> (data[1]), static_cast <float> (data[2]));
-	}
-	vec3f operator *= (float const_)
-	{
-		return vec3f(this->x * const_, this->y * const_, this->z * const_);
-	}
-
-};
+#include "freertos/task.h"
 
 
 
@@ -71,25 +24,26 @@ public:
 	Mpu9250();
 	virtual ~Mpu9250();
 	void init();
+	void init_spi();
 private:
 	SPI_t &mySPI = vspi;
-    spi_device_handle_t device=0;
+    spi_device_handle_t device_accel_gyro=0;
 
-	int16_t raw_data_accel[3] = {0};
-	int16_t raw_data_gyro[3] = {0};
-	int16_t raw_data_mag[3] = {0};
-	int16_t raw_temp = 0;
-	uint8_t rx_buffer[20] = {0};
+
+	volatile int16_t raw_data_accel[3] = {0};
+	volatile int16_t raw_data_gyro[3] = {0};
+	volatile int16_t raw_data_mag[3] = {0};
+	volatile int16_t raw_temp = 0;
+	volatile uint8_t rx_buffer[20] = {0};
 
 	float lsb_to_mg_accel = 0;
 	float lsb_to_dps_gyro = 0;
 	float lsb_to_nT_mag   = 0;
-
-	vec3f accel;
-	vec3f mag;
-	vec3f anguar_velo;
 	float temp=0;
 
+	Eigen::Vector3f accel;
+	Eigen::Vector3f anguar_velo;
+	Eigen::Vector3f mag;
 private:
 	void write_reg(uint8_t reg, uint8_t data);
 	uint8_t read_reg(uint8_t reg);
@@ -98,17 +52,33 @@ private:
 public:
 	void read_data();
 
-	vec3f getAccel() {
+	const Eigen::Vector3f& getAccel() const {
 		return accel;
 	}
 
-	vec3f getAnguarVelo() {
+	const Eigen::Vector3f& getAnguarVelo() const {
 		return anguar_velo;
 	}
 
-	vec3f getMag() {
+	const Eigen::Vector3f& getMag() const {
 		return mag;
 	}
+private:
+	const uint8_t SMPLRT_DIV     = 25;
+	const uint8_t CONFIG         = 26;
+	const uint8_t GYRO_CONFIG    = 27;
+	const uint8_t ACCEL_CONFIG   = 28;
+	const uint8_t ACCEL_CONFIG_2 = 29;
+	const uint8_t LP_ACCEL_ODR   = 30;
+	const uint8_t FIFO_EN        = 35;
+	const uint8_t INT_PIN_CFG    = 55;
+	const uint8_t INT_ENABLE     = 56;
+	const uint8_t INT_STATUS     = 58;
+	const uint8_t ACCEL_XOUT_H   = 59;
+	const uint8_t USER_CTRL      = 106;
+	const uint8_t PWR_MGMT_1     = 107;
+	const uint8_t PWR_MGMT_2     = 108;
+	const uint8_t WHO_AM_I       = 117;
 };
 
 #endif /* MAIN_MPU9250_H_ */
