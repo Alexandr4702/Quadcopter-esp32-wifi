@@ -247,6 +247,7 @@ void Gy91_thread(void *pvParameters) {
 	Mpu9250 avs;
 	avs.init();
 	imu_data imu;
+	TickType_t time;
     while (1) {
     	avs.read_data();
     	imu.accel = avs.getAccel();
@@ -266,7 +267,8 @@ void Gy91_thread(void *pvParameters) {
 //				gyro.x(), gyro.y(), gyro.z(),
 //				q0, q1, q2, q3);
 
-        vTaskDelay(1 );
+        vTaskDelay(1);
+//        vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
     }
 }
 
@@ -280,20 +282,20 @@ void sending_task(void *pvParameters) {
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
 		if(pd == pdTRUE)
 		{
-//			MadgwickAHRSupdate(
-//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
-//					imu.accel.x(), imu.accel.y(), imu.accel.z(),
-//					0, 0, 0);
+			MadgwickAHRSupdate(
+					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+					imu.accel.x(), imu.accel.y(), imu.accel.z(),
+					0, 0, 0);
 			int strl = sprintf(str,
-//					"%6.3f %6.3f %6.3f "
-//					"%6.3f %6.3f %6.3f"
-//					"%6.3f %6.3f %6.3f %6.3f"
+					"%6.3f %6.3f %6.3f "
+					"%6.3f %6.3f %6.3f"
+					"%6.3f %6.3f %6.3f %6.3f"
 					" %i "
 					"%u"
 					"\r\n",
-//					imu.accel.x(), imu.accel.y(), imu.accel.z(),
-//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
-//					q0, q1, q2, q3,
+					imu.accel.x(), imu.accel.y(), imu.accel.z(),
+					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+					q0, q1, q2, q3,
 					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
 					xTaskGetTickCount()
 					);
