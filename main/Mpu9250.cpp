@@ -7,6 +7,16 @@
 
 #include "Mpu9250.h"
 
+void print_bytes(void *ptr,uint16_t cnt_bytes)
+{
+	uint8_t* buff =reinterpret_cast<uint8_t*>(ptr);
+	for(uint16_t i=0;i<cnt_bytes;i++)
+	{
+		printf("%02hx ",buff[i]);
+	}
+	printf("\r\n");
+}
+
 Mpu9250::Mpu9250() {
 
 //	SPI_t &mySPI = vspi;  // vspi and hspi are the default objects
@@ -22,7 +32,7 @@ void Mpu9250::init() {
     uint8_t am = read_reg(WHO_AM_I);
     printf("%02hx \r\n",am);
 
-    SMPLRT_DIV_value = 19;
+    SMPLRT_DIV_value = 200;
     write_reg(SMPLRT_DIV, SMPLRT_DIV_value);
 
     uint8_t DLPF_CFG = 3;

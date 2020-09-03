@@ -23,16 +23,22 @@ static EventGroupHandle_t wifi_event_group;
 const int IPV4_GOTIP_BIT = BIT0;
 const int IPV6_GOTIP_BIT = BIT1;
 #define PORT 3232
+#define CONFIG_EXAMPLE_IPV4
 
 #include "Mpu9250.h"
 #include "SPIbus.h"
+
 typedef struct
 {
-	Eigen::Vector3f gyro3;
-	Eigen::Vector3f accel3;
-}imu_data __attribute__ ((packed));
+	Eigen::Vector3f gyro;
+	Eigen::Vector3f accel;
+	Eigen::Vector3f mag;
+}imu_data;
 xQueueHandle imu_queu;
-Mpu9250 sensor;
+
+std::vector<int> listened_sockets;
+char str[200];
+
 
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
@@ -128,7 +134,6 @@ static void tcp_server_task(void *pvParameters)
         int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
         if (listen_sock < 0) {
             ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
-
         }
         ESP_LOGI(TAG, "Socket created");
 
@@ -149,7 +154,6 @@ static void tcp_server_task(void *pvParameters)
 		struct sockaddr_in6 sourceAddr; // Large enough for both IPv4 or IPv6
 		uint addrLen = sizeof(sourceAddr);
 
-
 		fd_set write_fds;
 		fd_set read_fds;
 		fd_set error_fds;
@@ -158,37 +162,34 @@ static void tcp_server_task(void *pvParameters)
 		FD_ZERO(&write_fds);
 		FD_ZERO(&error_fds);
 
-		int max_fd=listen_sock+1;
-		std::vector<int> sockets;
-
+		int max_fd = listen_sock+1;
 
 		while (1)
 		{
 			FD_SET(listen_sock,&read_fds);
 			FD_SET(listen_sock,&error_fds);
 
-			for(int socket:sockets)
-			{
+			for(int socket:listened_sockets) {
 				FD_SET(socket,&read_fds);
 			}
-			timeval delay;
-			delay.tv_sec=1;
-			delay.tv_usec=0;
 
-			select(max_fd,&read_fds,&write_fds,&error_fds,&delay);
+			timeval delay;
+			delay.tv_sec = 1;
+			delay.tv_usec = 0;
+
+			select(max_fd,&read_fds,&write_fds,&error_fds,NULL);
 			ESP_LOGI(TAG,"slect");
 
 			if(FD_ISSET(listen_sock,&read_fds))
 			{
 
-
-				int new_socket=accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
+				int new_socket = accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
 				if (new_socket < 0) {
 					ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
 					continue;
 				}
 				//----------------------
-				if(sockets.size()>=1)
+				if(listened_sockets.size() >= 1)
 				{
 					close(new_socket);
 					printf("reject connection \r\n");
@@ -196,42 +197,41 @@ static void tcp_server_task(void *pvParameters)
 				}
 				//----------------------
 				ESP_LOGI(TAG, "Socket accepted");
-				sockets.push_back(new_socket);
+				listened_sockets.push_back(new_socket);
 				max_fd=(new_socket+1)>max_fd?(new_socket+1):max_fd;
-				printf("cnt connection %i %i %i\r\n",sockets.size(),max_fd,new_socket);
+				printf("cnt connection %i %i %i\r\n",listened_sockets.size(),max_fd,new_socket);
 			}
 
-
-			for(int i=0;i<sockets.size();i++)
+			for(int i=0;i<listened_sockets.size();i++)
 			{
-				if(FD_ISSET(sockets[i],&read_fds))
+				if(FD_ISSET(listened_sockets[i],&read_fds))
 				{
-					ssize_t len=read(sockets[i],rx_buffer,sizeof(rx_buffer));
-					if(len<0)
+					ssize_t len = read(listened_sockets[i], rx_buffer, sizeof(rx_buffer));
+					if(len < 0)
 					{
-						sockets.erase(sockets.begin()+i);
-						ESP_LOGI(TAG, "connection error %i %i",i,len);
+						listened_sockets.erase(listened_sockets.begin() + i);
+						ESP_LOGI(TAG, "connection error %i %i" ,i ,len);
 						perror("cnt");
-						printf("cnt connection %i \r\n",sockets.size());
+						printf("cnt connection %i \r\n", listened_sockets.size());
 					}
 					if(len==0)
 					{
-						sockets.erase(sockets.begin()+i);
+						listened_sockets.erase(listened_sockets.begin()+i);
 						ESP_LOGI(TAG, "connection closed");
-						printf("cnt connection %i \r\n",sockets.size());
+						printf("cnt connection %i \r\n", listened_sockets.size());
 					}
 					if(len>0)
 					{
-						printf("%s",rx_buffer);
-						memset(rx_buffer,0,sizeof(rx_buffer));
+						printf("%s", rx_buffer);
+						memset(rx_buffer, 0, sizeof(rx_buffer));
 					}
 				}
 			}
-			for(int i=0;i<sockets.size();i++)
-			{
-				const char * hell="hello world \r\n";
-				write(sockets[i],hell,strlen(hell));
-			}
+//			for(int i = 0;i < listened_sockets.size();i++)
+//			{
+//				const char * hell = "hello world \r\n";
+//				write(listened_sockets[i] ,hell ,strlen(hell));
+//			}
 
 			FD_ZERO(&read_fds);
 			FD_ZERO(&write_fds);
@@ -241,55 +241,94 @@ static void tcp_server_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-void print_bytes(void *ptr,uint16_t cnt_bytes)
-{
-	uint8_t* buff =reinterpret_cast<uint8_t*>(ptr);
-	for(uint16_t i=0;i<cnt_bytes;i++)
-	{
-		printf("%02hx ",buff[i]);
-	}
-	printf("\r\n");
-}
 
-static void Gy91_thread(void *pvParameters)
-{
+
+void Gy91_thread(void *pvParameters) {
 	Mpu9250 avs;
 	avs.init();
+	imu_data imu;
     while (1) {
     	avs.read_data();
-    	Eigen::Vector3f accel = avs.getAccel();
-    	Eigen::Vector3f gyro = avs.getAnguarVelo();
-//    	vec3f mag = avs.getMag();
-    	MadgwickAHRSupdate(
-    			gyro.x(), gyro.y(), gyro.z(),
-				accel.x(), accel.y(), accel.z(),
-				0, 0, 0);
-    	printf(
-    			"%10.5f %10.5f %10.5f "
-    			"%10.5f %10.5f %10.5f"
-    			"%10.5f %10.5f %10.5f %10.5f \r\n",
-				accel.x(), accel.y(), accel.z(),
-				gyro.x(), gyro.y(), gyro.z(),
-				q0, q1, q2, q3);
+    	imu.accel = avs.getAccel();
+    	imu.gyro = avs.getAnguarVelo();
+    	imu.mag = avs.getMag();
+    	xQueueSend(imu_queu,&imu,0);
 
-//        vTaskDelay(100 / portTICK_PERIOD_MS);
+//    	MadgwickAHRSupdate(
+//    			gyro.x(), gyro.y(), gyro.z(),
+//				accel.x(), accel.y(), accel.z(),
+//				0, 0, 0);
+//    	printf(
+//    			"%6.3f %6.3f %6.3f "
+//    			"%6.3f %6.3f %6.3f"
+//    			"%6.3f %6.3f %6.3f %6.3f \r\n",
+//				accel.x(), accel.y(), accel.z(),
+//				gyro.x(), gyro.y(), gyro.z(),
+//				q0, q1, q2, q3);
+
+        vTaskDelay(1 );
     }
 }
+
+void sending_task(void *pvParameters) {
+
+	imu_data imu;
+	BaseType_t pd = pdFALSE;
+	uint32_t cnt__ = 10;
+	while(true){
+
+		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
+		if(pd == pdTRUE)
+		{
+//			MadgwickAHRSupdate(
+//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+//					imu.accel.x(), imu.accel.y(), imu.accel.z(),
+//					0, 0, 0);
+			int strl = sprintf(str,
+//					"%6.3f %6.3f %6.3f "
+//					"%6.3f %6.3f %6.3f"
+//					"%6.3f %6.3f %6.3f %6.3f"
+					" %i "
+					"%u"
+					"\r\n",
+//					imu.accel.x(), imu.accel.y(), imu.accel.z(),
+//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+//					q0, q1, q2, q3,
+					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
+					xTaskGetTickCount()
+					);
+			for(int i = 0;i < listened_sockets.size();i++)
+			{
+				write(listened_sockets[i] ,str ,strl);
+			}
+			cnt__++;
+		}
+
+	}
+
+}
+
 
 extern "C"
 {
 
 void app_main(void)
 {
-//    ESP_ERROR_CHECK( nvs_flash_init() );
-//    initialise_wifi();
-//    wait_for_ip();
+    ESP_ERROR_CHECK( nvs_flash_init() );
+    initialise_wifi();
+    wait_for_ip();
 
 
+	imu_queu = xQueueCreate(128, sizeof(imu_data));
+	if(imu_queu == 0)
+	{
+		ESP_LOGE("ESP", "can't crate queue");while(1);
+	}
 
-//    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
 
+    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
+    xTaskCreate(sending_task, "task  send", 4096, NULL, 5, NULL);
 
 }
 
