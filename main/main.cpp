@@ -249,6 +249,8 @@ void Gy91_thread(void *pvParameters) {
 	imu_data imu;
 	TickType_t time;
     while (1) {
+    	time = xTaskGetTickCount();
+
     	avs.read_data();
     	imu.accel = avs.getAccel();
     	imu.gyro = avs.getAnguarVelo();
@@ -267,8 +269,8 @@ void Gy91_thread(void *pvParameters) {
 //				gyro.x(), gyro.y(), gyro.z(),
 //				q0, q1, q2, q3);
 
-        vTaskDelay(1);
-//        vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
+//        vTaskDelay(1);
+        vTaskDelayUntil(&time, 2);
     }
 }
 
