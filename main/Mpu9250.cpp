@@ -287,7 +287,7 @@ void Mpu9250::read_registers_to_AK8963(uint8_t reg, uint8_t* data, uint8_t cnt) 
 	write_reg(I2C_SLV0_REG , reg);
 
 	I2C_SLV0_CTRL_value = 0x80 | cnt;
-	write_reg(I2C_SLV0_CTRL , reg);
+	write_reg(I2C_SLV0_CTRL , I2C_SLV0_CTRL_value);
 
 	delay(5);
 	read_registers(EXT_SENS_DATA_00,data,cnt);
