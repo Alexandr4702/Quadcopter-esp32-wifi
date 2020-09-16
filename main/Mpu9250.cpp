@@ -26,7 +26,7 @@ Mpu9250::Mpu9250() {
 Mpu9250::~Mpu9250() {
 }
 
-#define MPU_InitRegNum 16
+#define MPU_InitRegNum 17
 // Write/Read Reg
 #define AK8963_CNTL1                0x0A
 #define AK8963_CNTL2                0x0B
@@ -41,48 +41,45 @@ void Mpu9250::init() {
 
 
 
-
-    uint8_t i = 0;
-    uint8_t MPU_Init_Data[MPU_InitRegNum][2] = {
-        //{0x80, PWR_MGMT_1},     // Reset Device - Disabled because it seems to corrupt initialisation of AK8963
-        {0x01, PWR_MGMT_1},     // Clock Source
-        {0x00, PWR_MGMT_2},     // Enable Acc & Gyro
-        {0x01, CONFIG},         // Use DLPF set Gyroscope bandwidth 184Hz, temperature bandwidth 188Hz
-        {0x18, GYRO_CONFIG},    // +-2000dps
-        {0x08, ACCEL_CONFIG},   // +-4G
-        {0x09, ACCEL_CONFIG_2}, // Set Acc Data Rates, Enable Acc LPF , Bandwidth 184Hz
-        {0x30, INT_PIN_CFG},    //
-        //{0x40, I2C_MST_CTRL},   // I2C Speed 348 kHz
-        //{0x20, USER_CTRL},      // Enable AUX
-        {0x20, USER_CTRL},       // I2C Master mode
-        {0x0D, I2C_MST_CTRL}, //  I2C configuration multi-master  IIC 400KHz
-
-        {AK8963_I2C_ADDR, I2C_SLV0_ADDR},  //Set the I2C slave addres of AK8963 and set for write.
-        //{0x09, I2C_SLV4_CTRL},
-        //{0x81, I2C_MST_DELAY_CTRL}, //Enable I2C delay
-
-        {AK8963_CNTL2, I2C_SLV0_REG}, //I2C slave 0 register address from where to begin data transfer
-        {0x01, I2C_SLV0_DO}, // Reset AK8963
-        {0x81, I2C_SLV0_CTRL},  //Enable I2C and set 1 byte
-
-        {AK8963_CNTL1, I2C_SLV0_REG}, //I2C slave 0 register address from where to begin data transfer
-        {0x12, I2C_SLV0_DO}, // Register value to continuous measurement in 16bit
-        {0x81, I2C_SLV0_CTRL}  //Enable I2C and set 1 byte
-
-    };
-    //spi.format(8,0);
-    //spi.frequency(1000000);
-
-    for(i=0; i<MPU_InitRegNum; i++) {
-    	write_reg(MPU_Init_Data[i][1], MPU_Init_Data[i][0]);
-        delay(100);  //I2C must slow down the write speed, otherwise it won't work
-    }
-
-
-
-
-    return ;
-
+//
+//    uint8_t i = 0;
+//    uint8_t MPU_Init_Data[MPU_InitRegNum][2] = {
+//        {0x80, PWR_MGMT_1},     // Reset Device - Disabled because it seems to corrupt initialisation of AK8963 // this work perhaps it require more time
+//        {0x01, PWR_MGMT_1},     // Clock Source
+//        {0x00, PWR_MGMT_2},     // Enable Acc & Gyro
+//        {0x01, CONFIG},         // Use DLPF set Gyroscope bandwidth 184Hz, temperature bandwidth 188Hz
+//        {0x18, GYRO_CONFIG},    // +-2000dps
+//        {0x08, ACCEL_CONFIG},   // +-4G
+//        {0x09, ACCEL_CONFIG_2}, // Set Acc Data Rates, Enable Acc LPF , Bandwidth 184Hz
+//        {0x30, INT_PIN_CFG},    //
+//        //{0x40, I2C_MST_CTRL},   // I2C Speed 348 kHz
+//        //{0x20, USER_CTRL},      // Enable AUX
+//        {0x20, USER_CTRL},       // I2C Master mode
+//        {0x0D, I2C_MST_CTRL}, //  I2C configuration multi-master  IIC 400KHz
+//
+//        {AK8963_I2C_ADDR, I2C_SLV0_ADDR},  //Set the I2C slave addres of AK8963 and set for write.
+//        //{0x09, I2C_SLV4_CTRL},
+//        //{0x81, I2C_MST_DELAY_CTRL}, //Enable I2C delay
+//
+//        {AK8963_CNTL2, I2C_SLV0_REG}, //I2C slave 0 register address from where to begin data transfer
+//        {0x01, I2C_SLV0_DO}, // Reset AK8963
+//        {0x81, I2C_SLV0_CTRL},  //Enable I2C and set 1 byte
+//
+//        {AK8963_CNTL1, I2C_SLV0_REG}, //I2C slave 0 register address from where to begin data transfer
+//        {0x12, I2C_SLV0_DO}, // Register value to continuous measurement in 16bit
+//        {0x81, I2C_SLV0_CTRL}  //Enable I2C and set 1 byte
+//
+//    };
+//    //spi.format(8,0);
+//    //spi.frequency(1000000);
+//
+//    for(i=0; i<MPU_InitRegNum; i++) {
+//    	write_reg(MPU_Init_Data[i][1], MPU_Init_Data[i][0]);
+//        delay(200);  //I2C must slow down the write speed, otherwise it won't work
+//    }
+//
+//    return ;
+//
 
 
 
@@ -94,6 +91,7 @@ void Mpu9250::init() {
     //select clock source
     PWR_MGMT_1_value = 1;
     write_reg(PWR_MGMT_1, PWR_MGMT_1_value);
+    delay(200);
     //pwr down magnetometrs
     {
 		//enable i2c master mode
@@ -105,12 +103,16 @@ void Mpu9250::init() {
 		uint8_t I2C_MST_CLK = 13;
 		I2C_MST_CTRL_value = I2C_MST_CLK;
 		write_reg(I2C_MST_CTRL,I2C_MST_CTRL_value);
+		delay(200);
 
 	    uint8_t who_am_i = read_reg_to_AK8963(0x00);
 	    printf("mag %02hx \r\n",who_am_i);
+
 		//pwr down ak8963
-		write_register_to_AK8963(CNTL1,0x00);
+//		write_register_to_AK8963(CNTL1,0x00);
     }
+
+    return;
     //reset
     write_reg(PWR_MGMT_1,0x80);
     delay(1);
@@ -295,7 +297,7 @@ void Mpu9250::read_registers_to_AK8963(uint8_t reg, uint8_t* data, uint8_t cnt) 
 
 uint8_t Mpu9250::read_reg_to_AK8963(uint8_t reg) {
 	uint8_t data;
-	read_registers(reg,&data,1);
+	read_registers_to_AK8963(reg,&data,1);
 	return data;
 }
 
