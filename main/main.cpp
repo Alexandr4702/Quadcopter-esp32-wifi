@@ -257,19 +257,6 @@ void Gy91_thread(void *pvParameters) {
     	imu.mag = avs.getMag();
     	xQueueSend(imu_queu,&imu,0);
 
-//    	MadgwickAHRSupdate(
-//    			gyro.x(), gyro.y(), gyro.z(),
-//				accel.x(), accel.y(), accel.z(),
-//				0, 0, 0);
-//    	printf(
-//    			"%6.3f %6.3f %6.3f "
-//    			"%6.3f %6.3f %6.3f"
-//    			"%6.3f %6.3f %6.3f %6.3f \r\n",
-//				accel.x(), accel.y(), accel.z(),
-//				gyro.x(), gyro.y(), gyro.z(),
-//				q0, q1, q2, q3);
-
-//        vTaskDelay(1);
         vTaskDelayUntil(&time, 10);
     }
 }
@@ -319,17 +306,17 @@ void sending_task(void *pvParameters) {
 					);
 			Eigen::Vector3f euler = ToEulerAngles(orentation) * 180.0f / M_PI;
 			int strl = sprintf(str,
-					"%11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f "
 					"%i "
 					"%u "
 					"\r\n",
-					imu.accel.x(), imu.accel.y(), imu.accel.z(),
-					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
-					imu.mag.x(), imu.mag.y(), imu.mag.z(),
+					imu.accel.x(), imu.accel.y(), imu.accel.z(), imu.accel.norm(),
+					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(), imu.gyro.norm(),
+					imu.mag.x(), imu.mag.y(), imu.mag.z(), imu.mag.norm(),
 					q0, q1, q2, q3,
 					euler.x(),euler.y(),euler.z(),
  					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
