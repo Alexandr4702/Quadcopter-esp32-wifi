@@ -81,53 +81,15 @@ void Mpu9250::init() {
 //    return ;
 //
 
-
-
-
-
-
-
+	reset_mpu();
 
     //select clock source
     PWR_MGMT_1_value = 1;
     write_reg(PWR_MGMT_1, PWR_MGMT_1_value);
-    delay(200);
-    //pwr down magnetometrs
-    {
-		//enable i2c master mode
-		uint8_t I2C_MST_EN = 1;
-		USER_CTRL_value = 0|I2C_MST_EN<<5;
-		write_reg(USER_CTRL,USER_CTRL_value);
-
-		//set i2c bus clock 400kHz
-		uint8_t I2C_MST_CLK = 13;
-		I2C_MST_CTRL_value = I2C_MST_CLK;
-		write_reg(I2C_MST_CTRL,I2C_MST_CTRL_value);
-		delay(200);
-
-	    uint8_t who_am_i = read_reg_to_AK8963(0x00);
-	    printf("mag %02hx \r\n",who_am_i);
-
-		//pwr down ak8963
-//		write_register_to_AK8963(CNTL1,0x00);
-    }
-
-    return;
-    //reset
-    write_reg(PWR_MGMT_1,0x80);
-    delay(1);
-
-    CNTL2_value = 0x01;
-    write_register_to_AK8963(CNTL2,CNTL2_value);
-
-    //select clock source
-    PWR_MGMT_1_value = 1;
-    write_reg(PWR_MGMT_1, PWR_MGMT_1_value);
-
+    delay(100);
     //checking gyro and accel valut must be equal 0x71 or 0x73
     uint8_t am = read_reg(WHO_AM_I);
-    printf("%02hx \r\n",am);
-
+    printf("mpu :%02hx \r\n",am);
     //enable sensor
     write_reg(PWR_MGMT_2,0x00);
 
@@ -157,43 +119,11 @@ void Mpu9250::init() {
 		lsb_to_dps_gyro = 250.0f / 32768.0f;
     }
     //-----------end setting up gyro and accel-----
-    {
-		//enable i2c master mode
-		uint8_t I2C_MST_EN = 1;
-		USER_CTRL_value = 0|I2C_MST_EN<<5;
-		write_reg(USER_CTRL,USER_CTRL_value);
+    setup_AK8963();
 
-		//set i2c bus clock 400kHz
-		uint8_t I2C_MST_CLK = 13;
-		I2C_MST_CTRL_value = I2C_MST_CLK;
-		write_reg(I2C_MST_CTRL,I2C_MST_CTRL_value);
-    }
-    //checking magnetometrs value must be equal 72
-    uint8_t who_am_i = read_reg_to_AK8963(0x00);
-    printf("mag %02hx \r\n",who_am_i);
-    //setting up magnetometrs
-    {
-    	CNTL1_value = 0x00;
-    	write_register_to_AK8963(CNTL1,CNTL1_value);
-    	delay(100);
-
-    	write_register_to_AK8963(CNTL1,0x0f);
-    	delay(100);
-
-    	uint8_t buff[7];
-    	read_registers_to_AK8963(ASAX,buff,3);
-    	mag_gain_from_rom[0] = ((((float)buff[0]) - 128.0f)/(256.0f) + 1.0f) * 4912.0f / 32760.0f;
-    	mag_gain_from_rom[1] = ((((float)buff[1]) - 128.0f)/(256.0f) + 1.0f) * 4912.0f / 32760.0f;
-    	mag_gain_from_rom[2] = ((((float)buff[2]) - 128.0f)/(256.0f) + 1.0f) * 4912.0f / 32760.0f;
-
-    	CNTL1_value = 0x00;
-    	write_register_to_AK8963(CNTL1,CNTL1_value);
-    	delay(100);
-    	CNTL1_value = 0x16;
-    	write_register_to_AK8963(CNTL1,CNTL1_value);
-
-    	read_registers_to_AK8963(HXL,buff,7);
-    }
+	write_reg(I2C_SLV0_ADDR,AK8963_I2C_ADDR | 0x80); //Set the I2C slave addres of AK8963 and set for read.
+	write_reg(I2C_SLV0_REG, HXL); //I2C slave 0 register address from where to begin data transfer
+	write_reg(I2C_SLV0_CTRL, 0x87); //Read 7 bytes from the magnetometer
 
 }
 
@@ -209,9 +139,9 @@ uint8_t Mpu9250::read_reg(uint8_t reg) {
 
 void Mpu9250::read_raw_data() {
 
-	write_reg(I2C_SLV0_ADDR,AK8963_I2C_ADDR | 0x80); //Set the I2C slave addres of AK8963 and set for read.
-	write_reg(I2C_SLV0_REG, HXL); //I2C slave 0 register address from where to begin data transfer
-	write_reg(I2C_SLV0_CTRL, 0x87); //Read 7 bytes from the magnetometer
+//	write_reg(I2C_SLV0_ADDR,AK8963_I2C_ADDR | 0x80); //Set the I2C slave addres of AK8963 and set for read.
+//	write_reg(I2C_SLV0_REG, HXL); //I2C slave 0 register address from where to begin data transfer
+//	write_reg(I2C_SLV0_CTRL, 0x87); //Read 7 bytes from the magnetometer
     //must start your read from AK8963A register 0x03 and read seven bytes so that upon read of ST2 register 0x09 the AK8963A will unlatch the data registers for the next measurement.
 
 
@@ -312,6 +242,53 @@ void Mpu9250::read_registers(uint8_t reg, uint8_t *data, uint8_t cnt) {
 	transaction.tx_buffer = NULL;
 	transaction.rx_buffer = data;
 	ESP_ERROR_CHECK( spi_device_transmit(device_accel_gyro, &transaction));
+}
+
+void Mpu9250::setup_i2c_AK8963() {
+	uint8_t I2C_MST_EN = 1;
+	USER_CTRL_value = 0|I2C_MST_EN<<5;
+	write_reg(USER_CTRL,USER_CTRL_value);
+
+	//set i2c bus clock 400kHz
+	uint8_t I2C_MST_CLK = 13;
+	I2C_MST_CTRL_value = I2C_MST_CLK;
+	write_reg(I2C_MST_CTRL,I2C_MST_CTRL_value);
+	delay(200);
+}
+
+void Mpu9250::reset_mpu() {
+    write_reg(PWR_MGMT_1,0x80);
+    delay(200);
+}
+
+void Mpu9250::setup_AK8963() {
+
+	//enable i2c master mode
+	setup_i2c_AK8963();
+
+	//checking magnetometrs value must be equal 72(0x48)
+	uint8_t who_am_i = read_reg_to_AK8963(0x00);
+	printf("mag %02hx \r\n",who_am_i);
+
+	//reset AK8963
+	write_register_to_AK8963(CNTL2,0x01);
+	delay(200);
+
+	uint8_t buff[7];
+	read_registers_to_AK8963(ASAX,buff,3);
+	mag_gain_from_rom[0] = ((((float)buff[0]) - 128.0f)/(256.0f) + 1.0f) * 4912.0f / 32760.0f;
+	mag_gain_from_rom[1] = ((((float)buff[1]) - 128.0f)/(256.0f) + 1.0f) * 4912.0f / 32760.0f;
+	mag_gain_from_rom[2] = ((((float)buff[2]) - 128.0f)/(256.0f) + 1.0f) * 4912.0f / 32760.0f;
+
+	//set continous mode
+	CNTL1_value = 0x16;
+	write_register_to_AK8963(CNTL1,CNTL1_value);
+	delay(100);
+	//set calib conf
+	lsb_to_nT_mag = 0.15e3;
+
+	//checking magnetometrs value must be equal 72(0x48)
+	printf("mag %02hx  %f %02hx %02hx %02hx \r\n",read_reg_to_AK8963(0x00), lsb_to_nT_mag, buff[0], buff[1] ,buff[2]);
 }
 
 void Mpu9250::read_data() {

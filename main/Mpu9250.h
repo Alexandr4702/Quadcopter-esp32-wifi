@@ -59,6 +59,9 @@ private:
 	void read_registers_to_AK8963 (uint8_t reg, uint8_t* data, uint8_t cnt);
 	uint8_t read_reg_to_AK8963 (uint8_t reg);
 	void delay(uint32_t delay_);
+	void setup_i2c_AK8963();
+	void reset_mpu();
+	void setup_AK8963();
 public:
 	void read_data();
 
