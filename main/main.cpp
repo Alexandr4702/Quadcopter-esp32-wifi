@@ -37,7 +37,7 @@ typedef struct
 xQueueHandle imu_queu;
 
 std::vector<int> listened_sockets;
-char str[200];
+char str[300];
 
 
 
@@ -253,7 +253,7 @@ void Gy91_thread(void *pvParameters) {
 
     	avs.read_data();
     	imu.accel = avs.getAccel();
-    	imu.gyro = avs.getAnguarVelo();
+    	imu.gyro = avs.getAnguarVelo() * M_PI / 180.0f;
     	imu.mag = avs.getMag();
     	xQueueSend(imu_queu,&imu,0);
 
@@ -274,6 +274,29 @@ void Gy91_thread(void *pvParameters) {
     }
 }
 
+Eigen::Vector3f ToEulerAngles(Eigen::Quaternionf& q) {
+	Eigen::Vector3f angles;
+
+    // roll (x-axis rotation)
+	float sinr_cosp = 2 * (q.w() * q.x() + q.y() * q.z());
+	float cosr_cosp = 1 - 2 * (q.x() * q.x() + q.y() * q.y());
+    angles[0] = std::atan2(sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    float sinp = 2 * (q.w() * q.y() - q.z() * q.x());
+    if (std::abs(sinp) >= 1)
+        angles[1] = std::copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    else
+        angles[1] = std::asin(sinp);
+
+    // yaw (z-axis rotation)
+    float siny_cosp = 2 * (q.w() * q.z() + q.x() * q.y());
+    float cosy_cosp = 1 - 2 * (q.y() * q.y() + q.z() * q.z());
+    angles[2] = std::atan2(siny_cosp, cosy_cosp);
+
+    return angles;
+}
+
 void sending_task(void *pvParameters) {
 
 	imu_data imu;
@@ -284,15 +307,23 @@ void sending_task(void *pvParameters) {
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
 		if(pd == pdTRUE)
 		{
-//			MadgwickAHRSupdate(
-//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
-//					imu.accel.x(), imu.accel.y(), imu.accel.z(),
-//					0, 0, 0);
+			MadgwickAHRSupdate(
+					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+					imu.accel.x(), imu.accel.y(), imu.accel.z(),
+					imu.mag.x(), imu.mag.y(), imu.mag.z());
+			Eigen::Quaternionf orentation(
+					const_cast<float&>(q0),
+					const_cast<float&>(q1),
+					const_cast<float&>(q2),
+					const_cast<float&>(q3)
+					);
+			Eigen::Vector3f euler = ToEulerAngles(orentation) * 180.0f / M_PI;
 			int strl = sprintf(str,
-					"%6.3f %6.3f %6.3f "
-					"%6.3f %6.3f %6.3f "
-					"%6.3f %6.3f %6.3f "
-					"%6.3f %6.3f %6.3f %6.3f "
+					"%11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f "
 					"%i "
 					"%u "
 					"\r\n",
@@ -300,6 +331,7 @@ void sending_task(void *pvParameters) {
 					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
 					imu.mag.x(), imu.mag.y(), imu.mag.z(),
 					q0, q1, q2, q3,
+					euler.x(),euler.y(),euler.z(),
  					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
 					xTaskGetTickCount()
 					);
