@@ -39,8 +39,6 @@ xQueueHandle imu_queu;
 std::vector<int> listened_sockets;
 char str[300];
 
-
-
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
     switch (static_cast<uint16_t>(event->event_id)) {
@@ -67,7 +65,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         xEventGroupSetBits(wifi_event_group, IPV6_GOTIP_BIT);
         ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP6");
 
-        char *ip6 = ip6addr_ntoa(&event->event_info.got_ip6.ip6_info.ip);
+        char *ip6 = ip6addr_ntoa(const_cast <const ip6_addr_t *> (reinterpret_cast <ip6_addr_t * > (&event->event_info.got_ip6.ip6_info.ip)));
         ESP_LOGI(TAG, "IPv6: %s", ip6);
     }break;
     default:
@@ -86,8 +84,8 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
     wifi_config_t wifi_config;
     memset(&wifi_config,0,sizeof(wifi_config_t));
-	memcpy(wifi_config.sta.ssid,CONFIG_ESP_WIFI_SSID,sizeof(wifi_config.sta.ssid));
-	memcpy(wifi_config.sta.password,CONFIG_ESP_WIFI_PASSWORD,sizeof(wifi_config.sta.password));
+	memcpy(wifi_config.sta.ssid, CONFIG_ESP_WIFI_SSID, sizeof(wifi_config.sta.ssid) - 1);
+	memcpy(wifi_config.sta.password, CONFIG_ESP_WIFI_PASSWORD, sizeof(wifi_config.sta.password) - 1);
 	printf("%s \r\n %s \r\n",wifi_config.sta.ssid,wifi_config.sta.password);
 
     ESP_LOGI(TAG, "Setting WiFi configuration SSID %s...", wifi_config.sta.ssid);
