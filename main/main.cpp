@@ -28,6 +28,8 @@ const int IPV6_GOTIP_BIT = BIT1;
 #include "Mpu9250.h"
 #include "SPIbus.h"
 
+#include "driver/ledc.h"
+
 typedef struct
 {
 	Eigen::Vector3f gyro;
@@ -292,10 +294,10 @@ void sending_task(void *pvParameters) {
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
 		if(pd == pdTRUE)
 		{
-			MadgwickAHRSupdate(
+			MadgwickAHRSupdateIMU(
 					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
-					imu.accel.x(), imu.accel.y(), imu.accel.z(),
-					imu.mag.x(), imu.mag.y(), imu.mag.z());
+					imu.accel.x(), imu.accel.y(), imu.accel.z());
+//					imu.mag.x(), imu.mag.y(), imu.mag.z());
 			Eigen::Quaternionf orentation(
 					const_cast<float&>(q0),
 					const_cast<float&>(q1),
@@ -306,7 +308,7 @@ void sending_task(void *pvParameters) {
 			int strl = sprintf(str,
 					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f %11.4f "
+//					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f "
 					"%i "
@@ -314,7 +316,7 @@ void sending_task(void *pvParameters) {
 					"\r\n",
 					imu.accel.x(), imu.accel.y(), imu.accel.z(), imu.accel.norm(),
 					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(), imu.gyro.norm(),
-					imu.mag.x(), imu.mag.y(), imu.mag.z(), imu.mag.norm(),
+//					imu.mag.x(), imu.mag.y(), imu.mag.z(), imu.mag.norm(),
 					q0, q1, q2, q3,
 					euler.x(),euler.y(),euler.z(),
  					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
@@ -329,6 +331,61 @@ void sending_task(void *pvParameters) {
 
 	}
 
+}
+
+void quadro_control(void *pvParameters) {
+	ledc_timer_config_t ledc_timer ;
+	ledc_timer.duty_resolution = LEDC_TIMER_13_BIT, // resolution of PWM duty
+	ledc_timer.freq_hz = 500,                      // frequency of PWM signal
+	ledc_timer.speed_mode = LEDC_LOW_SPEED_MODE,           // timer mode
+	ledc_timer.timer_num = LEDC_TIMER_1,            // timer index
+	ledc_timer.clk_cfg = LEDC_AUTO_CLK,              // Auto select the source clock
+
+	// Set configuration of timer0 for high speed channels
+	ledc_timer_config(&ledc_timer);
+
+//    ledc_timer.speed_mode = LEDC_LOW_SPEED_MODE;
+    ledc_timer.timer_num = LEDC_TIMER_1;
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel[4] = {0};
+
+	ledc_channel[0].channel    = LEDC_CHANNEL_0;
+	ledc_channel[0].duty       = 2000;
+	ledc_channel[0].gpio_num   = 2;
+	ledc_channel[0].speed_mode = LEDC_LOW_SPEED_MODE;
+	ledc_channel[0].hpoint     = 0;
+	ledc_channel[0].timer_sel  = LEDC_TIMER_1;
+
+	ledc_channel[1].channel    = LEDC_CHANNEL_1;
+	ledc_channel[1].duty       = 4000;
+	ledc_channel[1].gpio_num   = 4;
+	ledc_channel[1].speed_mode = LEDC_LOW_SPEED_MODE;
+	ledc_channel[1].hpoint     = 0;
+	ledc_channel[1].timer_sel  = LEDC_TIMER_1;
+
+	ledc_channel[2].channel    = LEDC_CHANNEL_2;
+	ledc_channel[2].duty       = 6000;
+	ledc_channel[2].gpio_num   = 21;
+	ledc_channel[2].speed_mode = LEDC_LOW_SPEED_MODE;
+	ledc_channel[2].hpoint     = 0;
+	ledc_channel[2].timer_sel  = LEDC_TIMER_1;
+
+	ledc_channel[3].channel    = LEDC_CHANNEL_3;
+	ledc_channel[3].duty       = 8000;
+	ledc_channel[3].gpio_num   = 22;
+	ledc_channel[3].speed_mode = LEDC_LOW_SPEED_MODE;
+	ledc_channel[3].hpoint     = 0;
+	ledc_channel[3].timer_sel  = LEDC_TIMER_1;
+
+	ledc_channel_config(&ledc_channel[0]);
+	ledc_channel_config(&ledc_channel[1]);
+	ledc_channel_config(&ledc_channel[2]);
+	ledc_channel_config(&ledc_channel[3]);
+
+	while(true){
+		vTaskDelay(10);
+	}
 }
 
 extern "C"
@@ -351,6 +408,7 @@ void app_main(void)
     xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
     xTaskCreate(sending_task, "task  send", 4096, NULL, 5, NULL);
+    xTaskCreate(quadro_control, "define pwm", 4096, NULL, 5, NULL);
 
 }
 
