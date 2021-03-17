@@ -14,9 +14,16 @@
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
+#include "Messagehandler.h"
+
 #include "vector"
 
 #include "MadgwickAHRS.h"
+
+#include "Mpu9250.h"
+#include "SPIbus.h"
+
+#include "driver/ledc.h"
 
 static const char *TAG = "example";
 static EventGroupHandle_t wifi_event_group;
@@ -25,10 +32,8 @@ const int IPV6_GOTIP_BIT = BIT1;
 #define PORT 3232
 #define CONFIG_EXAMPLE_IPV4
 
-#include "Mpu9250.h"
-#include "SPIbus.h"
+Message_handler msg_handler;
 
-#include "driver/ledc.h"
 
 typedef struct
 {
@@ -111,7 +116,6 @@ static void tcp_server_task(void *pvParameters)
     char addr_str[128];
     int addr_family;
     int ip_protocol;
-
 
 #ifdef CONFIG_EXAMPLE_IPV4
         struct sockaddr_in destAddr;
@@ -206,7 +210,7 @@ static void tcp_server_task(void *pvParameters)
 			{
 				if(FD_ISSET(listened_sockets[i],&read_fds))
 				{
-					ssize_t len = read(listened_sockets[i], rx_buffer, sizeof(rx_buffer));
+					int len = read(listened_sockets[i], rx_buffer, sizeof(rx_buffer));
 					if(len < 0)
 					{
 						listened_sockets.erase(listened_sockets.begin() + i);
@@ -214,15 +218,16 @@ static void tcp_server_task(void *pvParameters)
 						perror("cnt");
 						printf("cnt connection %i \r\n", listened_sockets.size());
 					}
-					if(len==0)
+					if(len == 0)
 					{
 						listened_sockets.erase(listened_sockets.begin()+i);
 						ESP_LOGI(TAG, "connection closed");
 						printf("cnt connection %i \r\n", listened_sockets.size());
 					}
-					if(len>0)
+					if(len > 0)
 					{
 						printf("%s", rx_buffer);
+						msg_handler.get_new_message(rx_buffer, len);
 						memset(rx_buffer, 0, sizeof(rx_buffer));
 					}
 				}
@@ -403,7 +408,6 @@ void app_main(void)
 	{
 		ESP_LOGE("ESP", "can't crate queue");while(1);
 	}
-
 
     xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
