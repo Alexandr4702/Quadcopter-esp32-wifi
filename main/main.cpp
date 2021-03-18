@@ -25,6 +25,8 @@
 
 #include "driver/ledc.h"
 
+using namespace Eigen;
+
 static const char *TAG = "example";
 static EventGroupHandle_t wifi_event_group;
 const int IPV4_GOTIP_BIT = BIT0;
@@ -34,7 +36,6 @@ const int IPV6_GOTIP_BIT = BIT1;
 
 Message_handler msg_handler;
 
-
 typedef struct
 {
 	Eigen::Vector3f gyro;
@@ -42,6 +43,12 @@ typedef struct
 	Eigen::Vector3f mag;
 }imu_data;
 xQueueHandle imu_queu;
+
+SemaphoreHandle_t orienation_mutex;
+Eigen::Vector3f orientation(0, 0, 0);
+
+SemaphoreHandle_t desired_orienation_mutex;
+Vector3f desired_orientation(0, 0, 0);
 
 std::vector<int> listened_sockets;
 char str[300];
@@ -353,7 +360,7 @@ void quadro_control(void *pvParameters) {
     ledc_timer.timer_num = LEDC_TIMER_1;
     ledc_timer_config(&ledc_timer);
 
-    ledc_channel_config_t ledc_channel[4] = {0};
+    ledc_channel_config_t ledc_channel[4];
 
 	ledc_channel[0].channel    = LEDC_CHANNEL_0;
 	ledc_channel[0].duty       = 2000;
@@ -406,7 +413,22 @@ void app_main(void)
 	imu_queu = xQueueCreate(128, sizeof(imu_data));
 	if(imu_queu == 0)
 	{
-		ESP_LOGE("ESP", "can't crate queue");while(1);
+		ESP_LOGE("ESP", "can't create queue");
+		while(1);
+	}
+	
+	orienation_mutex = xSemaphoreCreateMutex();
+	if(orienation_mutex == 0)
+	{
+		ESP_LOGE("ESP", "can't create mutex");
+		while(1);
+	}
+	
+	desired_orienation_mutex = xSemaphoreCreateMutex();
+	if(desired_orienation_mutex == 0)
+	{
+		ESP_LOGE("ESP", "can't create mutex");
+		while(1);
 	}
 
     xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
