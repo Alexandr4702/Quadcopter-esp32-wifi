@@ -45,7 +45,7 @@ typedef struct
 xQueueHandle imu_queu;
 
 SemaphoreHandle_t orienation_mutex;
-Eigen::Vector3f orientation(0, 0, 0);
+Vector3f orientation(0, 0, 0);
 
 SemaphoreHandle_t desired_orienation_mutex;
 Vector3f desired_orientation(0, 0, 0);
@@ -273,8 +273,8 @@ void Gy91_thread(void *pvParameters) {
     }
 }
 
-Eigen::Vector3f ToEulerAngles(Eigen::Quaternionf& q) {
-	Eigen::Vector3f angles;
+Vector3f ToEulerAngles(Quaternionf& q) {
+	Vector3f angles;
 
     // roll (x-axis rotation)
 	float sinr_cosp = 2 * (q.w() * q.x() + q.y() * q.z());
@@ -310,13 +310,19 @@ void sending_task(void *pvParameters) {
 					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
 					imu.accel.x(), imu.accel.y(), imu.accel.z());
 //					imu.mag.x(), imu.mag.y(), imu.mag.z());
-			Eigen::Quaternionf orentation(
+			Quaternionf orentation(
 					const_cast<float&>(q0),
 					const_cast<float&>(q1),
 					const_cast<float&>(q2),
 					const_cast<float&>(q3)
 					);
-			Eigen::Vector3f euler = ToEulerAngles(orentation) * 180.0f / M_PI;
+
+			Vector3f euler = ToEulerAngles(orentation) * 180.0f / M_PI;
+
+			xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+			orientation = euler;
+			xSemaphoreGive(orienation_mutex);
+
 			int strl = sprintf(str,
 					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f %11.4f "
@@ -363,28 +369,28 @@ void quadro_control(void *pvParameters) {
     ledc_channel_config_t ledc_channel[4];
 
 	ledc_channel[0].channel    = LEDC_CHANNEL_0;
-	ledc_channel[0].duty       = 2000;
+	ledc_channel[0].duty       = 0;
 	ledc_channel[0].gpio_num   = 2;
 	ledc_channel[0].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[0].hpoint     = 0;
 	ledc_channel[0].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[1].channel    = LEDC_CHANNEL_1;
-	ledc_channel[1].duty       = 4000;
+	ledc_channel[1].duty       = 0;
 	ledc_channel[1].gpio_num   = 4;
 	ledc_channel[1].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[1].hpoint     = 0;
 	ledc_channel[1].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[2].channel    = LEDC_CHANNEL_2;
-	ledc_channel[2].duty       = 6000;
+	ledc_channel[2].duty       = 0;
 	ledc_channel[2].gpio_num   = 21;
 	ledc_channel[2].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[2].hpoint     = 0;
 	ledc_channel[2].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[3].channel    = LEDC_CHANNEL_3;
-	ledc_channel[3].duty       = 8000;
+	ledc_channel[3].duty       = 0;
 	ledc_channel[3].gpio_num   = 22;
 	ledc_channel[3].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[3].hpoint     = 0;
@@ -395,7 +401,18 @@ void quadro_control(void *pvParameters) {
 	ledc_channel_config(&ledc_channel[2]);
 	ledc_channel_config(&ledc_channel[3]);
 
-	while(true){
+	Vector3f orientation_;
+	Vector3f target_orientation_;
+
+	while(true) {
+		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+		orientation_ = orientation;
+		xSemaphoreGive(orienation_mutex);
+
+		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+		target_orientation_ = desired_orientation;
+		xSemaphoreGive(orienation_mutex);
+
 		vTaskDelay(10);
 	}
 }
@@ -416,7 +433,7 @@ void app_main(void)
 		ESP_LOGE("ESP", "can't create queue");
 		while(1);
 	}
-	
+
 	orienation_mutex = xSemaphoreCreateMutex();
 	if(orienation_mutex == 0)
 	{

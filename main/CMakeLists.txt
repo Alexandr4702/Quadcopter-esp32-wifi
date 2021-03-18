@@ -8,6 +8,7 @@ set(COMPONENT_SRCS
 "SPIbus.cpp"
 "Messagehandler.cpp"
 "MadgwickAHRS.c"
+"PID.cpp"
 )
 set(COMPONENT_ADD_INCLUDEDIRS "" "/usr/include/eigen3")
 
