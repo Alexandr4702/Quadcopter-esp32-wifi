@@ -19,6 +19,7 @@
 #include "vector"
 
 #include "MadgwickAHRS.h"
+#include "PID.h"
 
 #include "Mpu9250.h"
 #include "SPIbus.h"
@@ -403,6 +404,8 @@ void quadro_control(void *pvParameters) {
 
 	Vector3f orientation_;
 	Vector3f target_orientation_;
+	PID <float, float> PID_PITCH;
+	PID <float, float> PIT_ROLL;
 
 	while(true) {
 		xSemaphoreTake(orienation_mutex, portMAX_DELAY);

@@ -12,23 +12,25 @@ template <typename T, typename TK>
 class PID
 {
 private:
+	TK Kp;
+	TK Ki;
+	TK Kd;
+
 	T error;
 	T privious_error;
 	T delta_error;
 	T summ_error;
-	T output;
 
 	T p_er;
 	T d_er;
 	T I_er;
 
-	TK Kp;
-	TK Ki;
-	TK Kd;
-	bool use_integral_saturation = false;
-	bool use_differential_saturation = false;
 	T integral_saturation;
 	T differential_saturation;
+	bool use_integral_saturation = false;
+	bool use_differential_saturation = false;
+
+	T output;
 public:
 	PID(TK Kp_, TK Ki_, TK Kd_, T integral_saturation_, T differential_saturation_);
 
@@ -43,5 +45,6 @@ public:
 	void update (T& error);
 	void update (T&& error);
 };
+#include "PID.tpp"
 
 #endif /* MAIN_PID_H_ */

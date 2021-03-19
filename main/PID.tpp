@@ -37,7 +37,12 @@ PID<T,TK>& PID <T, TK>::operator=(PID &&other) {
 }
 
 template <typename T, typename TK>
-PID <T, TK> ::PID(TK Kp_, TK Ki_, TK Kd_, T integral_saturation_, T differential_saturation_): Kp(Kp_), Ki(Ki_), Kd(Kd_), integral_saturation(0), privious_error(0), d_er(0), I_er(0), output(0), delta_error(0), summ_error(0)
+PID <T, TK> ::PID():  Kp(0), Ki(0), Kd(0), error(0), privious_error(0), delta_error(0), summ_error(0), p_er(0), d_er(0), I_er(0), integral_saturation(0), differential_saturation(0), output(0)
+{
+}
+
+template <typename T, typename TK>
+PID <T, TK> ::PID(TK Kp_, TK Ki_, TK Kd_, T integral_saturation_, T differential_saturation_): Kp(Kp_), Ki(Ki_), Kd(Kd_), error(0), privious_error(0), delta_error(0), summ_error(0), p_er(0), d_er(0), I_er(0), integral_saturation(0), differential_saturation(0), output(0)
 {
 }
 
