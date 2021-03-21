@@ -36,6 +36,7 @@ const int IPV6_GOTIP_BIT = BIT1;
 #define CONFIG_EXAMPLE_IPV4
 
 Message_handler msg_handler;
+int udp_sock = 0;
 
 typedef struct
 {
@@ -51,7 +52,6 @@ Vector3f orientation(0, 0, 0);
 SemaphoreHandle_t desired_orienation_mutex;
 Vector3f desired_orientation(0, 0, 0);
 
-std::vector<int> listened_sockets;
 char str[300];
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
@@ -118,12 +118,13 @@ static void wait_for_ip()
     ESP_LOGI(TAG, "Connected to AP");
 }
 
-static void tcp_server_task(void *pvParameters)
+static void udp_task(void *pvParameters)
 {
     char rx_buffer[128];
     char addr_str[128];
     int addr_family;
     int ip_protocol;
+    struct sockaddr from;
 
 #ifdef CONFIG_EXAMPLE_IPV4
         struct sockaddr_in destAddr;
@@ -131,7 +132,7 @@ static void tcp_server_task(void *pvParameters)
         destAddr.sin_family = AF_INET;
         destAddr.sin_port = htons(PORT);
         addr_family = AF_INET;
-        ip_protocol = IPPROTO_IP;
+        ip_protocol = IPPROTO_UDP;
         inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
 #else // IPV6
         struct sockaddr_in6 destAddr;
@@ -143,28 +144,23 @@ static void tcp_server_task(void *pvParameters)
         inet6_ntoa_r(destAddr.sin6_addr, addr_str, sizeof(addr_str) - 1);
 #endif
 
-        int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
-        if (listen_sock < 0) {
+        udp_sock = socket(addr_family, SOCK_DGRAM, ip_protocol);
+        if (udp_sock < 0) {
             ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
         }
         ESP_LOGI(TAG, "Socket created");
 
-        int err = bind(listen_sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
+        int err = bind(udp_sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
         if (err != 0) {
             ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
         }
         ESP_LOGI(TAG, "Socket binded");
 
-        err = listen(listen_sock, 1);
-        if (err != 0) {
-            ESP_LOGE(TAG, "Error occured during listen: errno %d", errno);
-        }
-
         while (1) {
 		ESP_LOGI(TAG, "Socket listening");
 
 		struct sockaddr_in6 sourceAddr; // Large enough for both IPv4 or IPv6
-		uint addrLen = sizeof(sourceAddr);
+		socklen_t addrLen = sizeof(sourceAddr);
 
 		fd_set write_fds;
 		fd_set read_fds;
@@ -174,77 +170,28 @@ static void tcp_server_task(void *pvParameters)
 		FD_ZERO(&write_fds);
 		FD_ZERO(&error_fds);
 
-		int max_fd = listen_sock+1;
+		int max_fd = udp_sock+1;
 
 		while (1)
 		{
-			FD_SET(listen_sock,&read_fds);
-			FD_SET(listen_sock,&error_fds);
-
-			for(int socket:listened_sockets) {
-				FD_SET(socket,&read_fds);
-			}
+			FD_SET(udp_sock,&read_fds);
+			FD_SET(udp_sock,&error_fds);
 
 			timeval delay;
 			delay.tv_sec = 1;
 			delay.tv_usec = 0;
 
 			select(max_fd,&read_fds,&write_fds,&error_fds,NULL);
-			ESP_LOGI(TAG,"slect");
+//			ESP_LOGI(TAG,"slect");
 
-			if(FD_ISSET(listen_sock,&read_fds))
+			if(FD_ISSET(udp_sock,&read_fds))
 			{
-
-				int new_socket = accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
-				if (new_socket < 0) {
-					ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
-					continue;
-				}
-				//----------------------
-				if(listened_sockets.size() >= 1)
-				{
-					close(new_socket);
-					printf("reject connection \r\n");
-					continue;
-				}
-				//----------------------
-				ESP_LOGI(TAG, "Socket accepted");
-				listened_sockets.push_back(new_socket);
-				max_fd=(new_socket+1)>max_fd?(new_socket+1):max_fd;
-				printf("cnt connection %i %i %i\r\n",listened_sockets.size(),max_fd,new_socket);
+//				int rec_len = recvfrom(udp_sock, rx_buffer, 128, 0, &from, &addrLen);
+				int rec_len = read(udp_sock, rx_buffer, 128);
+				rx_buffer[rec_len] = 0;
+				printf("%s %i \r\n",rx_buffer, rec_len);
+				memset(rx_buffer,0,128);
 			}
-
-			for(int i=0;i<listened_sockets.size();i++)
-			{
-				if(FD_ISSET(listened_sockets[i],&read_fds))
-				{
-					int len = read(listened_sockets[i], rx_buffer, sizeof(rx_buffer));
-					if(len < 0)
-					{
-						listened_sockets.erase(listened_sockets.begin() + i);
-						ESP_LOGI(TAG, "connection error %i %i" ,i ,len);
-						perror("cnt");
-						printf("cnt connection %i \r\n", listened_sockets.size());
-					}
-					if(len == 0)
-					{
-						listened_sockets.erase(listened_sockets.begin()+i);
-						ESP_LOGI(TAG, "connection closed");
-						printf("cnt connection %i \r\n", listened_sockets.size());
-					}
-					if(len > 0)
-					{
-						printf("%s", rx_buffer);
-						msg_handler.get_new_message(rx_buffer, len);
-						memset(rx_buffer, 0, sizeof(rx_buffer));
-					}
-				}
-			}
-//			for(int i = 0;i < listened_sockets.size();i++)
-//			{
-//				const char * hell = "hello world \r\n";
-//				write(listened_sockets[i] ,hell ,strlen(hell));
-//			}
 
 			FD_ZERO(&read_fds);
 			FD_ZERO(&write_fds);
@@ -302,6 +249,12 @@ void sending_task(void *pvParameters) {
 	imu_data imu;
 	BaseType_t pd = pdFALSE;
 	uint32_t cnt__ = 10;
+
+	struct sockaddr_in to;
+	to.sin_family = AF_INET;
+	to.sin_port = htons(PORT);
+	to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+
 	while(true){
 
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
@@ -341,9 +294,9 @@ void sending_task(void *pvParameters) {
  					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
 					xTaskGetTickCount()
 					);
-			for(int i = 0;i < listened_sockets.size();i++)
+			if(udp_sock != 0 )
 			{
-				write(listened_sockets[i] ,str ,strl);
+				sendto(udp_sock, str, strl, 0, reinterpret_cast <sockaddr *> (&to), sizeof(struct sockaddr_in));
 			}
 			cnt__++;
 		}
@@ -451,7 +404,7 @@ void app_main(void)
 		while(1);
 	}
 
-    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
+    xTaskCreate(udp_task, "tcp_server", 4096, NULL, 5, NULL);
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
     xTaskCreate(sending_task, "task  send", 4096, NULL, 5, NULL);
     xTaskCreate(quadro_control, "define pwm", 4096, NULL, 5, NULL);
