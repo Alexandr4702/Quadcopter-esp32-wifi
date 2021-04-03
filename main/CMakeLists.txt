@@ -9,6 +9,6 @@ set(COMPONENT_SRCS
 "Messagehandler.cpp"
 "MadgwickAHRS.c"
 )
-set(COMPONENT_ADD_INCLUDEDIRS "" "/usr/include/eigen3")
+set(COMPONENT_ADD_INCLUDEDIRS "" "../eigen")
 
 register_component()
