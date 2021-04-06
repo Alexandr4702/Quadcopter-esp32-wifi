@@ -8,6 +8,7 @@ set(COMPONENT_SRCS
 "SPIbus.cpp"
 "Messagehandler.cpp"
 "MadgwickAHRS.c"
+"LSM9DS1.cpp"
 )
 set(COMPONENT_ADD_INCLUDEDIRS "" "../eigen")
 

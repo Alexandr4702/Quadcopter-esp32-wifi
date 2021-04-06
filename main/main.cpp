@@ -5,7 +5,7 @@
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
-#include "esp_event_loop.h"
+#include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 
@@ -22,7 +22,8 @@
 #include "PID.h"
 
 #include "Mpu9250.h"
-#include "SPIbus.h"
+#include "LSM9DS1.h"
+//#include "SPIbus.h"
 
 #include "driver/ledc.h"
 
@@ -204,18 +205,25 @@ static void udp_task(void *pvParameters)
 
 
 void Gy91_thread(void *pvParameters) {
-	Mpu9250 avs;
-	avs.init();
+
 	imu_data imu;
 	TickType_t time;
+	LSM9DS1 Sensor(SPI3_HOST, 23, 19, 18, 5, 22);
+	if (Sensor.init() != 0)
+	{
+		fprintf(stderr, "Unsuccessful initialization lsm9ds1 \n ");
+		vTaskSuspend(NULL);
+	}
+
     while (1) {
     	time = xTaskGetTickCount();
+    	Sensor.read_raw_data();
+//    	avs.read_data();
+//    	imu.accel = avs.getAccel();
+//    	imu.gyro = avs.getAnguarVelo() * M_PI / 180.0f;
+//    	imu.mag = avs.getMag();
 
-    	avs.read_data();
-    	imu.accel = avs.getAccel();
-    	imu.gyro = avs.getAnguarVelo() * M_PI / 180.0f;
-    	imu.mag = avs.getMag();
-    	xQueueSend(imu_queu,&imu,0);
+//    	xQueueSend(imu_queu,&imu,0);
 
         vTaskDelayUntil(&time, 10);
     }
@@ -324,28 +332,28 @@ void quadro_control(void *pvParameters) {
 
 	ledc_channel[0].channel    = LEDC_CHANNEL_0;
 	ledc_channel[0].duty       = 0;
-	ledc_channel[0].gpio_num   = 2;
+	ledc_channel[0].gpio_num   = 13;
 	ledc_channel[0].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[0].hpoint     = 0;
 	ledc_channel[0].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[1].channel    = LEDC_CHANNEL_1;
 	ledc_channel[1].duty       = 0;
-	ledc_channel[1].gpio_num   = 4;
+	ledc_channel[1].gpio_num   = 12;
 	ledc_channel[1].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[1].hpoint     = 0;
 	ledc_channel[1].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[2].channel    = LEDC_CHANNEL_2;
 	ledc_channel[2].duty       = 0;
-	ledc_channel[2].gpio_num   = 21;
+	ledc_channel[2].gpio_num   = 14;
 	ledc_channel[2].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[2].hpoint     = 0;
 	ledc_channel[2].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[3].channel    = LEDC_CHANNEL_3;
 	ledc_channel[3].duty       = 0;
-	ledc_channel[3].gpio_num   = 22;
+	ledc_channel[3].gpio_num   = 27;
 	ledc_channel[3].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[3].hpoint     = 0;
 	ledc_channel[3].timer_sel  = LEDC_TIMER_1;
