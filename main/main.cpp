@@ -214,6 +214,7 @@ void Gy91_thread(void *pvParameters) {
 		fprintf(stderr, "Unsuccessful initialization lsm9ds1 \n ");
 		vTaskSuspend(NULL);
 	}
+	fprintf(stderr, "Successful initialization lsm9ds1 \n ");
 
     while (1) {
     	time = xTaskGetTickCount();
