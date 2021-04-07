@@ -10,12 +10,14 @@
 
 #include <stdint.h>
 #include "SPIbus.h"
+#include "Eigen/Core"
 
 class LSM9DS1 {
 public:
 	LSM9DS1(spi_host_device_t spi_bus, int mosi_pin, int miso_pin, int sck_pin,int cs_pin_accel_gyro, int cs_pin_mag);
 	~LSM9DS1();
 	void read_raw_data();
+	void read_data();
 	void software_reset();
 	int init();
 //	LSM9DS1(const LSM9DS1 &other);
@@ -26,13 +28,17 @@ private:
     spi_device_handle_t device_accel_gyro = 0;
     spi_device_handle_t device_mag = 0;
     SPI spi_bus;
-    uint8_t RAW_GYRO_TEMPERATURE[9];
-    uint8_t RAW_ACCEL[8];
+    uint8_t RAW_GYRO[7];
+    uint8_t RAW_ACCEL[7];
     uint8_t RAW_MAG[7];
-    int16_t TEMPERATURE_LSB;
+    int16_t TEMPERATURE_LSB = 0;
     int16_t GYRO_LSB [3];
     int16_t ACCEL_LSB [3];
     int16_t MAG_LSB [3];
+    Eigen::Vector3f angular_vel_degree;
+    Eigen::Vector3f acceleration_mg;
+    Eigen::Vector3f magnetic_field;
+
 private:
     /////////////////////////////////////////
     // LSM9DS1 Accel/Gyro (XL/G) Registers //
@@ -124,6 +130,11 @@ private:
     float gyro_scalar_lsb_to_deg = 0;
     float accel_scalar_lsb_to_mg = 0;
     float magnetometr_lsb_to_uTesla = 0;
+    Eigen::Matrix3f accel_gyro_to_mag_coord_system = (Eigen :: MatrixX3f(3,3) <<
+
+     		-1, 0, 0,
+     		0, -1, 0,
+ 			0, 0, 1).finished();
 };
 
 #endif /* MAIN_LSM9DS1_H_ */
