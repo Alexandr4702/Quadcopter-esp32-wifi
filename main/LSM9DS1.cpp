@@ -8,9 +8,6 @@
 #include "LSM9DS1.h"
 using namespace Eigen;
 
-#include "iostream"
-using namespace std;
-
 LSM9DS1::LSM9DS1(spi_host_device_t spi_bus_, int mosi_pin, int miso_pin, int sck_pin,int cs_pin_accel_gyro, int cs_pin_mag): spi_bus(spi_bus_)
 {
 	spi_bus.begin(mosi_pin, miso_pin, sck_pin, 1000);
@@ -38,8 +35,6 @@ void LSM9DS1::read_raw_data() {
 	MAG_LSB[0] = RAW_MAG[1] | (RAW_MAG[2] << 8);
 	MAG_LSB[1] = RAW_MAG[3] | (RAW_MAG[4] << 8);
 	MAG_LSB[2] = RAW_MAG[5] | (RAW_MAG[6] << 8);
-
-	printf("%8hi  %8hi %8hi \n", GYRO_LSB[0], GYRO_LSB[1], GYRO_LSB[2]);
 }
 
 void LSM9DS1::software_reset() {
@@ -48,12 +43,21 @@ void LSM9DS1::software_reset() {
 }
 
 void LSM9DS1::read_data() {
+	read_raw_data();
+	angular_vel_degree = Vector3f(GYRO_LSB[0], GYRO_LSB[1], GYRO_LSB [2]);
+	acceleration_mg = Vector3f(ACCEL_LSB[0], ACCEL_LSB[1], ACCEL_LSB[2]);
+	magnetic_field_uT = Vector3f(MAG_LSB[0], MAG_LSB[1], MAG_LSB[2]);
+
+	angular_vel_degree *= gyro_lsb_to_deg;
+	acceleration_mg *= accel_lsb_to_mg;
+	magnetic_field_uT *= magnetometr_lsb_to_uTesla;
+
+	//to common coordianat system
+	angular_vel_degree = accel_gyro_to_mag_coord_system * angular_vel_degree;
+	acceleration_mg = accel_gyro_to_mag_coord_system * acceleration_mg;
 }
 
 int LSM9DS1::init() {
-
-	cout << accel_gyro_to_mag_coord_system << endl;
-
 	uint8_t rx;
 	spi_bus.readBytes(device_accel_gyro, WHO_AM_I_XG, 1, &rx);
 	if(rx != WHO_AM_I_AG_RSP)
@@ -75,6 +79,7 @@ int LSM9DS1::init() {
 	uint8_t BW_G = 0;
 	CTRL_REG1_G_val |= (ODR_G << 5) | (FS_G << 3) | (BW_G);
 	spi_bus.writeByte(device_accel_gyro, CTRL_REG1_G, CTRL_REG1_G_val);
+	gyro_lsb_to_deg = 17.5f * 1.e-3;
 
 	uint8_t CTRL_REG6_XL_val = 0;
 	uint8_t ODR_XL = 3;
@@ -83,6 +88,7 @@ int LSM9DS1::init() {
 	uint8_t BW_XL = 3;
 	CTRL_REG6_XL_val |= (ODR_XL << 5) | (FS_XL << 3) | (BW_SCAL_ODR << 2) | (BW_XL);
 	spi_bus.writeByte(device_accel_gyro, CTRL_REG6_XL, CTRL_REG6_XL_val);
+	accel_lsb_to_mg = 0.122;
 
 	uint8_t CTRL_REG1_M_val = 0;
 	uint8_t TEMP_COMP = 0;
@@ -97,6 +103,7 @@ int LSM9DS1::init() {
 	uint8_t FS = 0; // 1LSB = 0.14 mgauss full scale +-4gauss
 	CTRL_REG2_M_val |= (FS << 5);
 	spi_bus.writeByte(device_mag, CTRL_REG2_M, CTRL_REG2_M_val);
+	magnetometr_lsb_to_uTesla = 0.14;
 
 	uint8_t CTRL_REG3_M_val = 0;
 	uint8_t I2C_DISABLE = 1;
@@ -117,3 +124,14 @@ int LSM9DS1::init() {
 	return 0;
 }
 
+const Eigen::Vector3f& LSM9DS1::get_linear_acellration() {
+	return acceleration_mg;
+}
+
+const Eigen::Vector3f& LSM9DS1::get_angular_velo() {
+	return angular_vel_degree;
+}
+
+const Eigen::Vector3f& LSM9DS1::get_magnetic_field() {
+	return magnetic_field_uT;
+}

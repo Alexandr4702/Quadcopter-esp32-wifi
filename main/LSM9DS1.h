@@ -16,10 +16,13 @@ class LSM9DS1 {
 public:
 	LSM9DS1(spi_host_device_t spi_bus, int mosi_pin, int miso_pin, int sck_pin,int cs_pin_accel_gyro, int cs_pin_mag);
 	~LSM9DS1();
+	int init();
+	void software_reset();
 	void read_raw_data();
 	void read_data();
-	void software_reset();
-	int init();
+	const Eigen::Vector3f& get_linear_acellration();
+	const Eigen::Vector3f& get_angular_velo();
+	const Eigen::Vector3f& get_magnetic_field();
 //	LSM9DS1(const LSM9DS1 &other);
 //	LSM9DS1(LSM9DS1 &&other);
 //	LSM9DS1& operator=(const LSM9DS1 &other);
@@ -37,7 +40,7 @@ private:
     int16_t MAG_LSB [3];
     Eigen::Vector3f angular_vel_degree;
     Eigen::Vector3f acceleration_mg;
-    Eigen::Vector3f magnetic_field;
+    Eigen::Vector3f magnetic_field_uT;
 
 private:
     /////////////////////////////////////////
@@ -127,8 +130,8 @@ private:
     const uint8_t WHO_AM_I_AG_RSP = 0x68;
     const uint8_t WHO_AM_I_M_RSP = 0x3D;
 private:
-    float gyro_scalar_lsb_to_deg = 0;
-    float accel_scalar_lsb_to_mg = 0;
+    float gyro_lsb_to_deg = 0;
+    float accel_lsb_to_mg = 0;
     float magnetometr_lsb_to_uTesla = 0;
     Eigen::Matrix3f accel_gyro_to_mag_coord_system = (Eigen :: MatrixX3f(3,3) <<
 

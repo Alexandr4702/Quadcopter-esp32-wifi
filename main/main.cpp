@@ -218,7 +218,18 @@ void Gy91_thread(void *pvParameters) {
 
     while (1) {
     	time = xTaskGetTickCount();
-    	Sensor.read_raw_data();
+    	Sensor.read_data();
+    	Vector3f ang_vel = Sensor.get_angular_velo();
+    	Vector3f accel = Sensor.get_linear_acellration();
+    	Vector3f mag = Sensor.get_magnetic_field();
+    	printf( "%9.3f %9.3f %9.3f "
+    			"%9.3f %9.3f %9.3f "
+    			"%9.3f %9.3f %9.3f\n",
+				ang_vel.x(), ang_vel.y(), ang_vel.z(),
+				accel.x(), accel.y(), accel.z(),
+				mag.x(), mag.y(), accel.z()
+				);
+
 //    	avs.read_data();
 //    	imu.accel = avs.getAccel();
 //    	imu.gyro = avs.getAnguarVelo() * M_PI / 180.0f;
