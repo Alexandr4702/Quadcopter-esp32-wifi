@@ -219,23 +219,11 @@ void Gy91_thread(void *pvParameters) {
     while (1) {
     	time = xTaskGetTickCount();
     	Sensor.read_data();
-    	Vector3f ang_vel = Sensor.get_angular_velo();
-    	Vector3f accel = Sensor.get_linear_acellration();
-    	Vector3f mag = Sensor.get_magnetic_field();
-    	printf( "%9.3f %9.3f %9.3f "
-    			"%9.3f %9.3f %9.3f "
-    			"%9.3f %9.3f %9.3f\n",
-				ang_vel.x(), ang_vel.y(), ang_vel.z(),
-				accel.x(), accel.y(), accel.z(),
-				mag.x(), mag.y(), accel.z()
-				);
+    	imu.accel = Sensor.get_linear_acellration();
+    	imu.gyro =  Sensor.get_angular_velo() * M_PI / 180.0f;
+    	imu.mag = Sensor.get_magnetic_field();
 
-//    	avs.read_data();
-//    	imu.accel = avs.getAccel();
-//    	imu.gyro = avs.getAnguarVelo() * M_PI / 180.0f;
-//    	imu.mag = avs.getMag();
-
-//    	xQueueSend(imu_queu,&imu,0);
+    	xQueueSend(imu_queu,&imu,0);
 
         vTaskDelayUntil(&time, 10);
     }
@@ -275,11 +263,21 @@ void sending_task(void *pvParameters) {
 	to.sin_port = htons(PORT);
 	to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
+	Vector3f orientation_avs(0, 0, 0);
+
 	while(true){
 
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
 		if(pd == pdTRUE)
 		{
+//--------------------------------------------------------------
+//			orientation_avs += imu.gyro * 0.01;
+//			printf("%11.4f %11.4f %11.4f "
+//					"%11.4f %11.4f %11.4f \n",
+//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+//					orientation_avs.x(), orientation_avs.y(), orientation_avs.z());
+//			continue;
+//--------------------------------------------------------------
 			MadgwickAHRSupdateIMU(
 					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
 					imu.accel.x(), imu.accel.y(), imu.accel.z());
@@ -316,6 +314,7 @@ void sending_task(void *pvParameters) {
 					);
 			if(udp_sock != 0 )
 			{
+//				printf("%s", str);
 				sendto(udp_sock, str, strl, 0, reinterpret_cast <sockaddr *> (&to), sizeof(struct sockaddr_in));
 			}
 			cnt__++;
@@ -424,7 +423,10 @@ void app_main(void)
 		while(1);
 	}
 
-    xTaskCreate(udp_task, "tcp_server", 4096, NULL, 5, NULL);
+    xTaskCreate(udp_task, "udp_server", 4096, NULL, 5, NULL);
+
+//    xTaskCreate(tcp_task, "tcp_server", 4096, NULL, 5, NULL);
+
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
     xTaskCreate(sending_task, "task  send", 4096, NULL, 5, NULL);
     xTaskCreate(quadro_control, "define pwm", 4096, NULL, 5, NULL);
