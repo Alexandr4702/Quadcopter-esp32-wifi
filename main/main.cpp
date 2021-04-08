@@ -35,6 +35,7 @@ const int IPV4_GOTIP_BIT = BIT0;
 const int IPV6_GOTIP_BIT = BIT1;
 #define PORT 3232
 #define CONFIG_EXAMPLE_IPV4
+std::vector<int> listened_sockets;
 
 Message_handler msg_handler;
 int udp_sock = 0;
@@ -117,6 +118,142 @@ static void wait_for_ip()
     ESP_LOGI(TAG, "Waiting for AP connection...");
     xEventGroupWaitBits(wifi_event_group, bits, false, true, portMAX_DELAY);
     ESP_LOGI(TAG, "Connected to AP");
+}
+
+static void tcp_server_task(void *pvParameters)
+{
+    char rx_buffer[128];
+    char addr_str[128];
+    int addr_family;
+    int ip_protocol;
+
+#ifdef CONFIG_EXAMPLE_IPV4
+        struct sockaddr_in destAddr;
+        destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        destAddr.sin_family = AF_INET;
+        destAddr.sin_port = htons(PORT);
+        addr_family = AF_INET;
+        ip_protocol = IPPROTO_IP;
+        inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
+#else // IPV6
+        struct sockaddr_in6 destAddr;
+        bzero(&destAddr.sin6_addr.un, sizeof(destAddr.sin6_addr.un));
+        destAddr.sin6_family = AF_INET6;
+        destAddr.sin6_port = htons(PORT);
+        addr_family = AF_INET6;
+        ip_protocol = IPPROTO_IPV6;
+        inet6_ntoa_r(destAddr.sin6_addr, addr_str, sizeof(addr_str) - 1);
+#endif
+
+        int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
+        if (listen_sock < 0) {
+            ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        }
+        ESP_LOGI(TAG, "Socket created");
+
+        int err = bind(listen_sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
+        if (err != 0) {
+            ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        }
+        ESP_LOGI(TAG, "Socket binded");
+
+        err = listen(listen_sock, 1);
+        if (err != 0) {
+            ESP_LOGE(TAG, "Error occured during listen: errno %d", errno);
+        }
+
+        while (1) {
+		ESP_LOGI(TAG, "Socket listening");
+
+		struct sockaddr_in6 sourceAddr; // Large enough for both IPv4 or IPv6
+		uint addrLen = sizeof(sourceAddr);
+
+		fd_set write_fds;
+		fd_set read_fds;
+		fd_set error_fds;
+
+		FD_ZERO(&read_fds);
+		FD_ZERO(&write_fds);
+		FD_ZERO(&error_fds);
+
+		int max_fd = listen_sock+1;
+
+		while (1)
+		{
+			FD_SET(listen_sock,&read_fds);
+			FD_SET(listen_sock,&error_fds);
+
+			for(int socket:listened_sockets) {
+				FD_SET(socket,&read_fds);
+			}
+
+			timeval delay;
+			delay.tv_sec = 1;
+			delay.tv_usec = 0;
+
+			select(max_fd,&read_fds,&write_fds,&error_fds,NULL);
+			ESP_LOGI(TAG,"slect");
+
+			if(FD_ISSET(listen_sock,&read_fds))
+			{
+
+				int new_socket = accept(listen_sock, (struct sockaddr *)&sourceAddr, &addrLen);
+				if (new_socket < 0) {
+					ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
+					continue;
+				}
+				//----------------------
+				if(listened_sockets.size() >= 1)
+				{
+					close(new_socket);
+					printf("reject connection \r\n");
+					continue;
+				}
+				//----------------------
+				ESP_LOGI(TAG, "Socket accepted");
+				listened_sockets.push_back(new_socket);
+				max_fd=(new_socket+1)>max_fd?(new_socket+1):max_fd;
+				printf("cnt connection %i %i %i\r\n",listened_sockets.size(),max_fd,new_socket);
+			}
+
+			for(int i=0;i<listened_sockets.size();i++)
+			{
+				if(FD_ISSET(listened_sockets[i],&read_fds))
+				{
+					int len = read(listened_sockets[i], rx_buffer, sizeof(rx_buffer));
+					if(len < 0)
+					{
+						listened_sockets.erase(listened_sockets.begin() + i);
+						ESP_LOGI(TAG, "connection error %i %i" ,i ,len);
+						perror("cnt");
+						printf("cnt connection %i \r\n", listened_sockets.size());
+					}
+					if(len == 0)
+					{
+						listened_sockets.erase(listened_sockets.begin()+i);
+						ESP_LOGI(TAG, "connection closed");
+						printf("cnt connection %i \r\n", listened_sockets.size());
+					}
+					if(len > 0)
+					{
+						printf("%s", rx_buffer);
+						msg_handler.get_new_message(rx_buffer, len);
+						memset(rx_buffer, 0, sizeof(rx_buffer));
+					}
+				}
+			}
+//			for(int i = 0;i < listened_sockets.size();i++)
+//			{
+//				const char * hell = "hello world \r\n";
+//				write(listened_sockets[i] ,hell ,strlen(hell));
+//			}
+
+			FD_ZERO(&read_fds);
+			FD_ZERO(&write_fds);
+			FD_ZERO(&error_fds);
+		}
+	}
+    vTaskDelete(NULL);
 }
 
 static void udp_task(void *pvParameters)
@@ -202,8 +339,6 @@ static void udp_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-
-
 void Gy91_thread(void *pvParameters) {
 
 	imu_data imu;
@@ -263,8 +398,6 @@ void sending_task(void *pvParameters) {
 	to.sin_port = htons(PORT);
 	to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
-	Vector3f orientation_avs(0, 0, 0);
-
 	while(true){
 
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
@@ -278,17 +411,32 @@ void sending_task(void *pvParameters) {
 //					orientation_avs.x(), orientation_avs.y(), orientation_avs.z());
 //			continue;
 //--------------------------------------------------------------
-			MadgwickAHRSupdateIMU(
-					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
-					imu.accel.x(), imu.accel.y(), imu.accel.z());
+//			MadgwickAHRSupdateIMU(
+//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+//					imu.accel.x(), imu.accel.y(), imu.accel.z());
+//			Quaternionf orentation(
+//					const_cast<float&>(q0),
+//					const_cast<float&>(q1),
+//					const_cast<float&>(q2),
+//					const_cast<float&>(q3)
+//					);
+//---------------------------------------------------------------------
+//--------------------------------------------------------------
+//			MadgwickAHRSupdate(
+//					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
+//					imu.accel.x(), imu.accel.y(), imu.accel.z(),
 //					imu.mag.x(), imu.mag.y(), imu.mag.z());
-			Quaternionf orentation(
-					const_cast<float&>(q0),
-					const_cast<float&>(q1),
-					const_cast<float&>(q2),
-					const_cast<float&>(q3)
-					);
+//			Quaternionf orentation(
+//					const_cast<float&>(q0),
+//					const_cast<float&>(q1),
+//					const_cast<float&>(q2),
+//					const_cast<float&>(q3)
+//					);
+//---------------------------------------------------------------------
+//---------------------------------------------------------------------
 
+
+//---------------------------------------------------------------------
 			Vector3f euler = ToEulerAngles(orentation) * 180.0f / M_PI;
 
 			xSemaphoreTake(orienation_mutex, portMAX_DELAY);
@@ -314,7 +462,11 @@ void sending_task(void *pvParameters) {
 					);
 			if(udp_sock != 0 )
 			{
-//				printf("%s", str);
+				for(int i = 0;i < listened_sockets.size();i++)
+				{
+					write(listened_sockets[i] ,str ,strl);
+				}
+
 				sendto(udp_sock, str, strl, 0, reinterpret_cast <sockaddr *> (&to), sizeof(struct sockaddr_in));
 			}
 			cnt__++;
@@ -425,7 +577,7 @@ void app_main(void)
 
     xTaskCreate(udp_task, "udp_server", 4096, NULL, 5, NULL);
 
-//    xTaskCreate(tcp_task, "tcp_server", 4096, NULL, 5, NULL);
+    xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
 
     xTaskCreate(Gy91_thread, "sensor_thread", 4096, NULL, 5, NULL);
     xTaskCreate(sending_task, "task  send", 4096, NULL, 5, NULL);
