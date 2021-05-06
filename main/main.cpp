@@ -24,6 +24,7 @@
 #include "Mpu9250.h"
 #include "LSM9DS1.h"
 //#include "SPIbus.h"
+#include "Madgwick.h"
 
 #include "driver/ledc.h"
 
@@ -49,7 +50,7 @@ typedef struct
 xQueueHandle imu_queu;
 
 SemaphoreHandle_t orienation_mutex;
-Vector3f orientation(0, 0, 0);
+Vector3f orientation_euler_orient(0, 0, 0);
 
 SemaphoreHandle_t desired_orienation_mutex;
 Vector3f desired_orientation(0, 0, 0);
@@ -392,12 +393,13 @@ void sending_task(void *pvParameters) {
 	imu_data imu;
 	BaseType_t pd = pdFALSE;
 	uint32_t cnt__ = 10;
+    Madgwick_filter madgwick;
+	Quaternionf orientation;
 
 	struct sockaddr_in to;
 	to.sin_family = AF_INET;
 	to.sin_port = htons(PORT);
 	to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-
 	while(true){
 
 		pd = xQueueReceive(imu_queu, &imu, portMAX_DELAY);
@@ -414,47 +416,55 @@ void sending_task(void *pvParameters) {
 //			MadgwickAHRSupdateIMU(
 //					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
 //					imu.accel.x(), imu.accel.y(), imu.accel.z());
-//			Quaternionf orentation(
+//			orentation = Quaternionf(
 //					const_cast<float&>(q0),
 //					const_cast<float&>(q1),
 //					const_cast<float&>(q2),
 //					const_cast<float&>(q3)
 //					);
-//---------------------------------------------------------------------
 //--------------------------------------------------------------
 //			MadgwickAHRSupdate(
 //					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(),
 //					imu.accel.x(), imu.accel.y(), imu.accel.z(),
 //					imu.mag.x(), imu.mag.y(), imu.mag.z());
-//			Quaternionf orentation(
+//			orientation = Quaternionf(
 //					const_cast<float&>(q0),
 //					const_cast<float&>(q1),
 //					const_cast<float&>(q2),
 //					const_cast<float&>(q3)
 //					);
 //---------------------------------------------------------------------
-//---------------------------------------------------------------------
+			Vector3d ref_1_accel = Vector3d(0, 0, 1);
+			Vector3d meas_1_accel (imu.accel.x(), imu.accel.y(), imu.accel.z());
+			meas_1_accel.normalize();
+			Vector3d gyro (imu.gyro.x(), imu.gyro.y(), imu.gyro.z());
 
+			madgwick.update(ref_1_accel, meas_1_accel, gyro, 0.01);
+			Quaterniond madgw_orient = madgwick.get_orientaion();
+			orientation = Quaternionf(madgw_orient.w(), madgw_orient.x(), madgw_orient.y(), madgw_orient.z());
 
 //---------------------------------------------------------------------
-			Vector3f euler = ToEulerAngles(orentation) * 180.0f / M_PI;
+			Vector3f euler = ToEulerAngles(orientation) * 180.0f / M_PI;
 
 			xSemaphoreTake(orienation_mutex, portMAX_DELAY);
-			orientation = euler;
+			orientation_euler_orient = euler;
 			xSemaphoreGive(orienation_mutex);
+
+			Vector3f omega_deg = imu.gyro * 180 / M_PI;
+			Vector3d omega_bias_deg = madgwick.getOmega_bias()  * 180 / M_PI;;
 
 			int strl = sprintf(str,
 					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f %11.4f "
-//					"%11.4f %11.4f %11.4f %11.4f "
+					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f %11.4f "
 					"%11.4f %11.4f %11.4f "
 					"%i "
 					"%u "
 					"\r\n",
 					imu.accel.x(), imu.accel.y(), imu.accel.z(), imu.accel.norm(),
-					imu.gyro.x(), imu.gyro.y(), imu.gyro.z(), imu.gyro.norm(),
-//					imu.mag.x(), imu.mag.y(), imu.mag.z(), imu.mag.norm(),
+					omega_deg.x(), omega_deg.y(), omega_deg.z(), omega_deg.norm(),
+					omega_bias_deg.x(), omega_bias_deg.y(), omega_bias_deg.z(), omega_bias_deg.norm(),
 					q0, q1, q2, q3,
 					euler.x(),euler.y(),euler.z(),
  					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
@@ -533,7 +543,7 @@ void quadro_control(void *pvParameters) {
 
 	while(true) {
 		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
-		orientation_ = orientation;
+		orientation_ = orientation_euler_orient;
 		xSemaphoreGive(orienation_mutex);
 
 		xSemaphoreTake(orienation_mutex, portMAX_DELAY);

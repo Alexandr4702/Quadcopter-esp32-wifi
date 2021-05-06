@@ -3,4 +3,4 @@
 	url = https://gitlab.com/libeigen/eigen.git
 [submodule "Madgwick-filter-cpp-"]
 	path = Madgwick-filter-cpp-
-	url = https://github.com/Alexandr4702/Madgwick-filter-cpp-.git
+	url = git@github.com:Alexandr4702/Madgwick-filter-cpp-.git

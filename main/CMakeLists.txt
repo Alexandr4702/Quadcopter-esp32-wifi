@@ -9,7 +9,11 @@ set(COMPONENT_SRCS
 "Messagehandler.cpp"
 "MadgwickAHRS.c"
 "LSM9DS1.cpp"
+"../Madgwick-filter-cpp-/Madgwick.cpp"
 )
-set(COMPONENT_ADD_INCLUDEDIRS "" "../eigen")
+set(COMPONENT_ADD_INCLUDEDIRS "" 
+"../eigen"
+"../Madgwick-filter-cpp-"
+)
 
 register_component()
