@@ -542,13 +542,26 @@ void quadro_control(void *pvParameters) {
 	PID <float, float> PIT_ROLL;
 
 	while(true) {
-		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
-		orientation_ = orientation_euler_orient;
-		xSemaphoreGive(orienation_mutex);
+//		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+//		orientation_ = orientation_euler_orient;
+//		xSemaphoreGive(orienation_mutex);
+//
+//		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+//		target_orientation_ = desired_orientation;
+//		xSemaphoreGive(orienation_mutex);
+		uint32_t tick_cnt = xTaskGetTickCount();
+		float time = (static_cast <float> (tick_cnt)) * 1e-3f;
+		float omega = 10;
 
-		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
-		target_orientation_ = desired_orientation;
-		xSemaphoreGive(orienation_mutex);
+		ledc_channel[0].duty = static_cast<uint32_t>((cosf(time * omega                     ) + 1) * 4000.0f);
+		ledc_channel[1].duty = static_cast<uint32_t>((cosf(time * omega +        M_PI / 4.0f) + 1) * 4000.0f);
+		ledc_channel[2].duty = static_cast<uint32_t>((cosf(time * omega +        M_PI / 2.0f) + 1) * 4000.0f);
+		ledc_channel[3].duty = static_cast<uint32_t>((cosf(time * omega + 3.0f * M_PI / 4.0f) + 1) * 4000.0f);
+
+		ledc_channel_config(&ledc_channel[0]);
+		ledc_channel_config(&ledc_channel[1]);
+		ledc_channel_config(&ledc_channel[2]);
+		ledc_channel_config(&ledc_channel[3]);
 
 		vTaskDelay(10);
 	}
