@@ -28,6 +28,8 @@
 
 #include "driver/ledc.h"
 
+#include "command_list.h"
+
 using namespace Eigen;
 
 static const char *TAG = "example";
@@ -327,7 +329,12 @@ static void udp_task(void *pvParameters)
 			{
 //				int rec_len = recvfrom(udp_sock, rx_buffer, 128, 0, &from, &addrLen);
 				int rec_len = read(udp_sock, rx_buffer, 128);
-				rx_buffer[rec_len] = 0;
+				uint16_t comman_id = *reinterpret_cast <uint16_t*> (rx_buffer);
+				switch (comman_id)
+				{
+				case set_throttle_comm
+				}
+
 				printf("%s %i \r\n",rx_buffer, rec_len);
 				memset(rx_buffer,0,128);
 			}
