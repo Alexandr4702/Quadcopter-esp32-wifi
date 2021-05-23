@@ -57,6 +57,9 @@ Vector3f orientation_euler_orient(0, 0, 0);
 SemaphoreHandle_t desired_orienation_mutex;
 Vector3f desired_orientation(0, 0, 0);
 
+SemaphoreHandle_t throttle_mutex;
+float throttle = 0;
+
 char str[300];
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
@@ -322,7 +325,7 @@ static void udp_task(void *pvParameters)
 			delay.tv_sec = 1;
 			delay.tv_usec = 0;
 
-			select(max_fd,&read_fds,&write_fds,&error_fds,NULL);
+			select(max_fd,&read_fds, &write_fds, &error_fds,NULL);
 //			ESP_LOGI(TAG,"slect");
 
 			if(FD_ISSET(udp_sock,&read_fds))
@@ -330,9 +333,32 @@ static void udp_task(void *pvParameters)
 //				int rec_len = recvfrom(udp_sock, rx_buffer, 128, 0, &from, &addrLen);
 				int rec_len = read(udp_sock, rx_buffer, 128);
 				uint16_t comman_id = *reinterpret_cast <uint16_t*> (rx_buffer);
+				void* data_ptr = rx_buffer + 2;
 				switch (comman_id)
 				{
-				case set_throttle_comm
+				case set_throttle_comm:
+				{
+					struct set_throttle* ptr = reinterpret_cast <struct set_throttle*> (data_ptr);
+					xSemaphoreTake(throttle_mutex, portMAX_DELAY);
+					throttle = ptr->value;
+					xSemaphoreGive(throttle_mutex);
+				}
+				break;
+				case set_orientation_comm:
+				{
+
+				}
+				break;
+				case start_comm:
+				{
+
+				}
+				break;
+				case stop_comm:
+				{
+
+				}
+				break;
 				}
 
 				printf("%s %i \r\n",rx_buffer, rec_len);
@@ -667,6 +693,13 @@ void app_main(void)
 	
 	desired_orienation_mutex = xSemaphoreCreateMutex();
 	if(desired_orienation_mutex == 0)
+	{
+		ESP_LOGE("ESP", "can't create mutex");
+		while(1);
+	}
+
+	throttle_mutex = xSemaphoreCreateMutex();
+	if(throttle_mutex == 0)
 	{
 		ESP_LOGE("ESP", "can't create mutex");
 		while(1);

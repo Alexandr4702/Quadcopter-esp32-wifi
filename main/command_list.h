@@ -1,7 +1,7 @@
 /*
  * command_list.h
  *
- *  Created on: 23 мая 2021 г.
+ *  Created on: 23 пїЅпїЅпїЅ 2021 пїЅ.
  *      Author: Danila
  */
 
@@ -14,8 +14,6 @@ enum command_list
 	set_orientation_comm,
 	start_comm, // empty
 	stop_comm, // empty
-
-
 };
 
 struct set_throttle
