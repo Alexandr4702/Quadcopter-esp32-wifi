@@ -47,7 +47,7 @@ PID <T, TK> ::PID(TK Kp_, TK Ki_, TK Kd_, T integral_saturation_, T differential
 }
 
 template <typename T, typename TK>
-void PID <T, TK>::update(T& x0, T& x, TK& delta_t)
+void PID <T, TK>::update(T& x0, T& x, TK delta_t)
 {
 	error = x0 - x;
 	delta_error = error - privious_error;

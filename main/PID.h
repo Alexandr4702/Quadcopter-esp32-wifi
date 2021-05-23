@@ -41,9 +41,37 @@ public:
 	PID& operator=(const PID &other);
 	PID& operator=(PID &&other);
 
-	void update(T& x0, T& x, TK& delta_t);
+	void update(T& x0, T& x, TK delta_t);
 	void update (T& error);
 	void update (T&& error);
+
+	TK getKd() const {
+		return Kd;
+	}
+
+	void setKd(TK kd) {
+		Kd = kd;
+	}
+
+	TK getKi() const {
+		return Ki;
+	}
+
+	void setKi(TK ki) {
+		Ki = ki;
+	}
+
+	TK getKp() const {
+		return Kp;
+	}
+
+	void setKp(TK kp) {
+		Kp = kp;
+	}
+
+	T getOutput() const {
+		return output;
+	}
 };
 #include "PID.tpp"
 

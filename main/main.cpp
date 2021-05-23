@@ -451,39 +451,65 @@ void sending_task(void *pvParameters) {
 			xSemaphoreGive(orienation_mutex);
 
 			Vector3f omega_deg = imu.gyro * 180 / M_PI;
-			Vector3d omega_bias_deg = madgwick.getOmega_bias()  * 180 / M_PI;;
+			Vector3d omega_bias_deg = madgwick.getOmega_bias()  * 180 / M_PI;
 
-			int strl = sprintf(str,
-					"%11.4f %11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f %11.4f "
-					"%11.4f %11.4f %11.4f "
-					"%i "
-					"%u "
-					"\r\n",
-					imu.accel.x(), imu.accel.y(), imu.accel.z(), imu.accel.norm(),
-					omega_deg.x(), omega_deg.y(), omega_deg.z(), omega_deg.norm(),
-					omega_bias_deg.x(), omega_bias_deg.y(), omega_bias_deg.z(), omega_bias_deg.norm(),
-					q0, q1, q2, q3,
-					euler.x(),euler.y(),euler.z(),
- 					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
-					xTaskGetTickCount()
-					);
-			if(udp_sock != 0 )
+			if(0)
 			{
-				for(int i = 0;i < listened_sockets.size();i++)
+				int strl = sprintf(str,
+						"%11.4f %11.4f %11.4f %11.4f "
+						"%11.4f %11.4f %11.4f %11.4f "
+						"%11.4f %11.4f %11.4f %11.4f "
+						"%11.4f %11.4f %11.4f %11.4f "
+						"%11.4f %11.4f %11.4f "
+						"%i "
+						"%u "
+						"\r\n",
+						imu.accel.x(), imu.accel.y(), imu.accel.z(), imu.accel.norm(),
+						omega_deg.x(), omega_deg.y(), omega_deg.z(), omega_deg.norm(),
+						omega_bias_deg.x(), omega_bias_deg.y(), omega_bias_deg.z(), omega_bias_deg.norm(),
+						q0, q1, q2, q3,
+						euler.x(),euler.y(),euler.z(),
+	 					static_cast <int>(uxQueueSpacesAvailable(imu_queu)),
+						xTaskGetTickCount()
+						);
+				if(udp_sock != 0 )
 				{
-					write(listened_sockets[i] ,str ,strl);
-				}
+					for(int i = 0;i < listened_sockets.size();i++)
+					{
+						write(listened_sockets[i] ,str ,strl);
+					}
 
-				sendto(udp_sock, str, strl, 0, reinterpret_cast <sockaddr *> (&to), sizeof(struct sockaddr_in));
+					sendto(udp_sock, str, strl, 0, reinterpret_cast <sockaddr *> (&to), sizeof(struct sockaddr_in));
+				}
+				cnt__++;
 			}
-			cnt__++;
+
 		}
 
 	}
 
+}
+
+uint32_t normalise_duty(float pid_res)
+{
+	if(pid_res < 0.0)
+		pid_res = 0.0;
+	else if(pid_res > 1.0)
+		pid_res = 1.0;
+	return static_cast<uint32_t>(pid_res * 8000);
+}
+
+Vector4f calc_channel(Vector3f pid_res, float throttle)
+{
+	Vector4f out;
+	float pt = pid_res[0];
+	float ro = pid_res[1];
+	float ya = pid_res[2];
+	out[0] = throttle + pt / 2 - ro / 2 + ya / 2;
+	out[1] = throttle - pt / 2 - ro / 2 - ya / 2;
+	out[2] = throttle - pt / 2 + ro / 2 + ya / 2;
+	out[3] = throttle + pt / 2 + ro / 2 - ya / 2;
+	return out;
 }
 
 void quadro_control(void *pvParameters) {
@@ -519,14 +545,14 @@ void quadro_control(void *pvParameters) {
 
 	ledc_channel[2].channel    = LEDC_CHANNEL_2;
 	ledc_channel[2].duty       = 0;
-	ledc_channel[2].gpio_num   = 14;
+	ledc_channel[2].gpio_num   = 27;
 	ledc_channel[2].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[2].hpoint     = 0;
 	ledc_channel[2].timer_sel  = LEDC_TIMER_1;
 
 	ledc_channel[3].channel    = LEDC_CHANNEL_3;
 	ledc_channel[3].duty       = 0;
-	ledc_channel[3].gpio_num   = 27;
+	ledc_channel[3].gpio_num   = 14;
 	ledc_channel[3].speed_mode = LEDC_LOW_SPEED_MODE;
 	ledc_channel[3].hpoint     = 0;
 	ledc_channel[3].timer_sel  = LEDC_TIMER_1;
@@ -538,25 +564,66 @@ void quadro_control(void *pvParameters) {
 
 	Vector3f orientation_;
 	Vector3f target_orientation_;
+
 	PID <float, float> PID_PITCH;
-	PID <float, float> PIT_ROLL;
+	PID <float, float> PID_ROLL;
+	PID <float, float> PID_YAW;
+	PID_PITCH.setKp(0.05);
+	PID_ROLL.setKp(0.05);
+	PID_YAW.setKp(0);
+
+	struct sockaddr_in to;
+	to.sin_family = AF_INET;
+	to.sin_port = htons(PORT);
+	to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+	uint32_t cnt__ = 10;
 
 	while(true) {
-//		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
-//		orientation_ = orientation_euler_orient;
-//		xSemaphoreGive(orienation_mutex);
-//
-//		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
-//		target_orientation_ = desired_orientation;
-//		xSemaphoreGive(orienation_mutex);
+		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+		orientation_ = orientation_euler_orient;
+		xSemaphoreGive(orienation_mutex);
+
+		xSemaphoreTake(orienation_mutex, portMAX_DELAY);
+		target_orientation_ = desired_orientation;
+		xSemaphoreGive(orienation_mutex);
+
+		PID_PITCH.update(target_orientation_[0], orientation_ [0], 0.01);
+		PID_ROLL.update(target_orientation_[1], orientation_ [1], 0.01);
+		PID_YAW.update(target_orientation_[2], orientation_ [2], 0.01);
+		Vector3f pid_out (PID_PITCH.getOutput(), PID_ROLL.getOutput(), PID_YAW.getOutput());
+		Vector4f res = calc_channel(pid_out, 0.1);
+
 		uint32_t tick_cnt = xTaskGetTickCount();
 		float time = (static_cast <float> (tick_cnt)) * 1e-3f;
 		float omega = 10;
 
-		ledc_channel[0].duty = static_cast<uint32_t>((cosf(time * omega                     ) + 1) * 4000.0f);
-		ledc_channel[1].duty = static_cast<uint32_t>((cosf(time * omega +        M_PI / 4.0f) + 1) * 4000.0f);
-		ledc_channel[2].duty = static_cast<uint32_t>((cosf(time * omega +        M_PI / 2.0f) + 1) * 4000.0f);
-		ledc_channel[3].duty = static_cast<uint32_t>((cosf(time * omega + 3.0f * M_PI / 4.0f) + 1) * 4000.0f);
+		ledc_channel[0].duty = 0; //normalise_duty(res[0]); //static_cast<uint32_t>((cosf(time * omega                     ) + 1) * 4000.0f);
+		ledc_channel[1].duty = 0; //normalise_duty(res[1]); //static_cast<uint32_t>((cosf(time * omega +        M_PI / 4.0f) + 1) * 4000.0f);
+		ledc_channel[2].duty = 0; //normalise_duty(res[2]); //static_cast<uint32_t>((cosf(time * omega +        M_PI / 2.0f) + 1) * 4000.0f);
+		ledc_channel[3].duty = 0; //normalise_duty(res[3]); //static_cast<uint32_t>((cosf(time * omega + 3.0f * M_PI / 4.0f) + 1) * 4000.0f);
+
+		if(1)
+		{
+			int strl = sprintf(str,
+					"%u %u %u %u "
+					"%7.4f %7.4f %7.4f "
+					"%7.4f %7.4f %7.4f"
+					"\r\n",
+					normalise_duty(res[0]), normalise_duty(res[1]), normalise_duty(res[2]), normalise_duty(res[3]),
+					orientation_[0], orientation_[1], orientation_[2],
+					target_orientation_[0], target_orientation_[1], target_orientation_[2]
+					);
+			if(udp_sock != 0 )
+			{
+				for(int i = 0;i < listened_sockets.size();i++)
+				{
+					write(listened_sockets[i] ,str ,strl);
+				}
+
+				sendto(udp_sock, str, strl, 0, reinterpret_cast <sockaddr *> (&to), sizeof(struct sockaddr_in));
+			}
+			cnt__++;
+		}
 
 		ledc_channel_config(&ledc_channel[0]);
 		ledc_channel_config(&ledc_channel[1]);
